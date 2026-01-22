@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
 	ArrowDownTrayIcon,
 	ArrowUpTrayIcon,
@@ -61,7 +61,6 @@ function formatSeverityBadge(severity: ParsedIssue['severity'], scheme: Severity
 }
 
 export function StarkConsolidator() {
-	const fileInputRef = useRef<HTMLInputElement | null>(null);
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const [parsedFiles, setParsedFiles] = useState<ParsedFileResult[]>([]);
@@ -160,8 +159,7 @@ export function StarkConsolidator() {
 			setIssues(consolidated);
 			setParsedFiles(debugByFile);
 		} catch (e) {
-			if (e instanceof Error) setError(e.stack ?? e.message);
-			else setError('Failed to parse files');
+			setError(e instanceof Error ? e.message : 'Failed to parse files');
 		} finally {
 			setBusy(false);
 		}
@@ -268,13 +266,7 @@ export function StarkConsolidator() {
 							type="file"
 							accept="text/html,.html"
 							multiple
-							ref={fileInputRef}
-							onChange={(e) => {
-								const files = e.currentTarget.files;
-								// Allow re-selecting the same file to re-trigger parsing.
-								e.currentTarget.value = '';
-								void onFilesSelected(files);
-							}}
+							onChange={(e) => void onFilesSelected(e.currentTarget.files)}
 							disabled={busy}
 							className="sr-only"
 						/>
