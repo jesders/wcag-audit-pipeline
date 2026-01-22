@@ -939,107 +939,22 @@ export function consolidatedIssuesToHtmlDigest(
           .map((s) => `<div class="source">${escapeHtml(s)}</div>`)
           .join("")}</div></details>`
       : "";
+
     return `
 			<article class="issue">
 				<header class="issueHeader">
-					<div class="left">
-						<div class="badges">
-							<span class="${severityClass[i.severity]}">${escapeHtml(sevLabel(i.severity))}</span>
-							<span class="occ">${i.occurrences}×</span>
-							${wcag}${rule}
-
-            <h3 class="statsTitle">Totals</h3>
-            <dl class="statsGrid">
-              <div class="statsCard">
-                <dt>
-                  <div class="statsIconWrap">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="statsIcon">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M9 8h6m3 13.5H6A2.25 2.25 0 0 1 3.75 19.25V4.75A2.25 2.25 0 0 1 6 2.5h8.25L20.25 8.5v10.75A2.25 2.25 0 0 1 18 21.5Z" />
-                    </svg>
-                  </div>
-                  <p class="statsLabel">${escapeHtml(sevLabel('Critical'))} occurrences</p>
-                </dt>
-                <dd class="statsValueRow">
-                  <p class="statsValue">${totalsBySeverity.Critical}</p>
-                  <div class="statsFooter"><div class="text-sm"><span class="statsFooterText">By severity</span></div></div>
-                </dd>
-              </div>
-
-              <div class="statsCard">
-                <dt>
-                  <div class="statsIconWrap">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="statsIcon">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M9 8h6m3 13.5H6A2.25 2.25 0 0 1 3.75 19.25V4.75A2.25 2.25 0 0 1 6 2.5h8.25L20.25 8.5v10.75A2.25 2.25 0 0 1 18 21.5Z" />
-                    </svg>
-                  </div>
-                  <p class="statsLabel">${escapeHtml(sevLabel('Serious'))} occurrences</p>
-                </dt>
-                <dd class="statsValueRow">
-                  <p class="statsValue">${totalsBySeverity.Serious}</p>
-                  <div class="statsFooter"><div class="text-sm"><span class="statsFooterText">By severity</span></div></div>
-                </dd>
-              </div>
-
-              <div class="statsCard">
-                <dt>
-                  <div class="statsIconWrap">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="statsIcon">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M9 8h6m3 13.5H6A2.25 2.25 0 0 1 3.75 19.25V4.75A2.25 2.25 0 0 1 6 2.5h8.25L20.25 8.5v10.75A2.25 2.25 0 0 1 18 21.5Z" />
-                    </svg>
-                  </div>
-                  <p class="statsLabel">${escapeHtml(sevLabel('Moderate'))} occurrences</p>
-                </dt>
-                <dd class="statsValueRow">
-                  <p class="statsValue">${totalsBySeverity.Moderate}</p>
-                  <div class="statsFooter"><div class="text-sm"><span class="statsFooterText">By severity</span></div></div>
-                </dd>
-              </div>
-
-              <div class="statsCard">
-                <dt>
-                  <div class="statsIconWrap">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="statsIcon">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M9 8h6m3 13.5H6A2.25 2.25 0 0 1 3.75 19.25V4.75A2.25 2.25 0 0 1 6 2.5h8.25L20.25 8.5v10.75A2.25 2.25 0 0 1 18 21.5Z" />
-                    </svg>
-                  </div>
-                  <p class="statsLabel">${escapeHtml(sevLabel('Minor'))} occurrences</p>
-                </dt>
-                <dd class="statsValueRow">
-                  <p class="statsValue">${totalsBySeverity.Minor}</p>
-                  <div class="statsFooter"><div class="text-sm"><span class="statsFooterText">By severity</span></div></div>
-                </dd>
-              </div>
-
-              <div class="statsCard">
-                <dt>
-                  <div class="statsIconWrap">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="statsIcon">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M9 8h6m3 13.5H6A2.25 2.25 0 0 1 3.75 19.25V4.75A2.25 2.25 0 0 1 6 2.5h8.25L20.25 8.5v10.75A2.25 2.25 0 0 1 18 21.5Z" />
-                    </svg>
-                  </div>
-                  <p class="statsLabel">Unknown occurrences</p>
-                </dt>
-                <dd class="statsValueRow">
-                  <p class="statsValue">${totalsBySeverity.Unknown}</p>
-                  <div class="statsFooter"><div class="text-sm"><span class="statsFooterText">By severity</span></div></div>
-                </dd>
-              </div>
-
-              <div class="statsCard">
-                <dt>
-                  <div class="statsIconWrap">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="statsIcon">
-                      <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M9 8h6m3 13.5H6A2.25 2.25 0 0 1 3.75 19.25V4.75A2.25 2.25 0 0 1 6 2.5h8.25L20.25 8.5v10.75A2.25 2.25 0 0 1 18 21.5Z" />
-                    </svg>
-                  </div>
-                  <p class="statsLabel">All occurrences</p>
-                </dt>
-                <dd class="statsValueRow">
-                  <p class="statsValue">${totalOccurrences}</p>
-                  <div class="statsFooter"><div class="text-sm"><span class="statsFooterText">Across all issues</span></div></div>
-                </dd>
-              </div>
-            </dl>
+					<div class="badges">
+						<span class="${severityClass[i.severity]}">${escapeHtml(sevLabel(i.severity))}</span>
+						<span class="occ">${i.occurrences}×</span>
+						${wcag}${rule}
+					</div>
+					<h4>${escapeHtml(i.title)}</h4>
+				</header>
+				<p class="desc">${escapeHtml(i.description || "")}</p>
+				${sources}
+				${pagesDetails}
+				${examples}
+			</article>
 		`;
   };
 
@@ -1068,14 +983,98 @@ export function consolidatedIssuesToHtmlDigest(
 			<div class="sub">Generated ${escapeHtml(generatedLabel)} • ${totalUnique} unique issues • ${totalOccurrences} total occurrences</div>
 		</div>
 
-		<div class="grid">
-			<div class="card"><div class="big">${totalsBySeverity.Critical}</div><div class="small">${escapeHtml(sevLabel("Critical"))} occurrences</div></div>
-			<div class="card"><div class="big">${totalsBySeverity.Serious}</div><div class="small">${escapeHtml(sevLabel("Serious"))} occurrences</div></div>
-			<div class="card"><div class="big">${totalsBySeverity.Moderate}</div><div class="small">${escapeHtml(sevLabel("Moderate"))} occurrences</div></div>
-			<div class="card"><div class="big">${totalsBySeverity.Minor}</div><div class="small">${escapeHtml(sevLabel("Minor"))} occurrences</div></div>
-			<div class="card"><div class="big">${totalsBySeverity.Unknown}</div><div class="small">Unknown occurrences</div></div>
-			<div class="card"><div class="big">${totalOccurrences}</div><div class="small">All occurrences</div></div>
-		</div>
+    <h3 class="statsTitle">Totals</h3>
+    <dl class="statsGrid">
+      <div class="statsCard">
+        <dt>
+          <div class="statsIconWrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="statsIcon">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M9 8h6m3 13.5H6A2.25 2.25 0 0 1 3.75 19.25V4.75A2.25 2.25 0 0 1 6 2.5h8.25L20.25 8.5v10.75A2.25 2.25 0 0 1 18 21.5Z" />
+            </svg>
+          </div>
+          <p class="statsLabel">${escapeHtml(sevLabel('Critical'))} occurrences</p>
+        </dt>
+        <dd class="statsValueRow">
+          <p class="statsValue">${totalsBySeverity.Critical}</p>
+          <div class="statsFooter"><div class="text-sm"><span class="statsFooterText">By severity</span></div></div>
+        </dd>
+      </div>
+
+      <div class="statsCard">
+        <dt>
+          <div class="statsIconWrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="statsIcon">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M9 8h6m3 13.5H6A2.25 2.25 0 0 1 3.75 19.25V4.75A2.25 2.25 0 0 1 6 2.5h8.25L20.25 8.5v10.75A2.25 2.25 0 0 1 18 21.5Z" />
+            </svg>
+          </div>
+          <p class="statsLabel">${escapeHtml(sevLabel('Serious'))} occurrences</p>
+        </dt>
+        <dd class="statsValueRow">
+          <p class="statsValue">${totalsBySeverity.Serious}</p>
+          <div class="statsFooter"><div class="text-sm"><span class="statsFooterText">By severity</span></div></div>
+        </dd>
+      </div>
+
+      <div class="statsCard">
+        <dt>
+          <div class="statsIconWrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="statsIcon">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M9 8h6m3 13.5H6A2.25 2.25 0 0 1 3.75 19.25V4.75A2.25 2.25 0 0 1 6 2.5h8.25L20.25 8.5v10.75A2.25 2.25 0 0 1 18 21.5Z" />
+            </svg>
+          </div>
+          <p class="statsLabel">${escapeHtml(sevLabel('Moderate'))} occurrences</p>
+        </dt>
+        <dd class="statsValueRow">
+          <p class="statsValue">${totalsBySeverity.Moderate}</p>
+          <div class="statsFooter"><div class="text-sm"><span class="statsFooterText">By severity</span></div></div>
+        </dd>
+      </div>
+
+      <div class="statsCard">
+        <dt>
+          <div class="statsIconWrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="statsIcon">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M9 8h6m3 13.5H6A2.25 2.25 0 0 1 3.75 19.25V4.75A2.25 2.25 0 0 1 6 2.5h8.25L20.25 8.5v10.75A2.25 2.25 0 0 1 18 21.5Z" />
+            </svg>
+          </div>
+          <p class="statsLabel">${escapeHtml(sevLabel('Minor'))} occurrences</p>
+        </dt>
+        <dd class="statsValueRow">
+          <p class="statsValue">${totalsBySeverity.Minor}</p>
+          <div class="statsFooter"><div class="text-sm"><span class="statsFooterText">By severity</span></div></div>
+        </dd>
+      </div>
+
+      <div class="statsCard">
+        <dt>
+          <div class="statsIconWrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="statsIcon">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M9 8h6m3 13.5H6A2.25 2.25 0 0 1 3.75 19.25V4.75A2.25 2.25 0 0 1 6 2.5h8.25L20.25 8.5v10.75A2.25 2.25 0 0 1 18 21.5Z" />
+            </svg>
+          </div>
+          <p class="statsLabel">Unknown occurrences</p>
+        </dt>
+        <dd class="statsValueRow">
+          <p class="statsValue">${totalsBySeverity.Unknown}</p>
+          <div class="statsFooter"><div class="text-sm"><span class="statsFooterText">By severity</span></div></div>
+        </dd>
+      </div>
+
+      <div class="statsCard">
+        <dt>
+          <div class="statsIconWrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="statsIcon">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M9 8h6m3 13.5H6A2.25 2.25 0 0 1 3.75 19.25V4.75A2.25 2.25 0 0 1 6 2.5h8.25L20.25 8.5v10.75A2.25 2.25 0 0 1 18 21.5Z" />
+            </svg>
+          </div>
+          <p class="statsLabel">All occurrences</p>
+        </dt>
+        <dd class="statsValueRow">
+          <p class="statsValue">${totalOccurrences}</p>
+          <div class="statsFooter"><div class="text-sm"><span class="statsFooterText">Across all issues</span></div></div>
+        </dd>
+      </div>
+    </dl>
 
 		${groups
       .map((g) => {
