@@ -386,7 +386,9 @@ export function StarkConsolidator() {
                   <p className="statsValue">{totalIssues}</p>
                   <div className="statsFooter">
                     <div className="text-sm">
-                      <span className="statsFooterText">Consolidated totals</span>
+                      <span className="statsFooterText">
+                        Consolidated totals
+                      </span>
                     </div>
                   </div>
                 </dd>
@@ -414,13 +416,19 @@ export function StarkConsolidator() {
                   <div className="statsIconWrap">
                     <DocumentTextIcon className="statsIcon" />
                   </div>
-                  <p className="statsLabel">Report total (violations + potential)</p>
+                  <p className="statsLabel">
+                    Report total (violations + potential)
+                  </p>
                 </dt>
                 <dd className="statsValueRow">
-                  <p className="statsValue">{reportedTotals.hasAny ? reportedTotals.total : "—"}</p>
+                  <p className="statsValue">
+                    {reportedTotals.hasAny ? reportedTotals.total : "—"}
+                  </p>
                   <div className="statsFooter">
                     <div className="text-sm">
-                      <span className="statsFooterText">From Stark breakdown</span>
+                      <span className="statsFooterText">
+                        From Stark breakdown
+                      </span>
                     </div>
                   </div>
                 </dd>
@@ -434,10 +442,14 @@ export function StarkConsolidator() {
                   <p className="statsLabel">Report violations</p>
                 </dt>
                 <dd className="statsValueRow">
-                  <p className="statsValue">{reportedTotals.hasAny ? reportedTotals.violations : "—"}</p>
+                  <p className="statsValue">
+                    {reportedTotals.hasAny ? reportedTotals.violations : "—"}
+                  </p>
                   <div className="statsFooter">
                     <div className="text-sm">
-                      <span className="statsFooterText">From Stark breakdown</span>
+                      <span className="statsFooterText">
+                        From Stark breakdown
+                      </span>
                     </div>
                   </div>
                 </dd>
@@ -451,10 +463,14 @@ export function StarkConsolidator() {
                   <p className="statsLabel">Report potential violations</p>
                 </dt>
                 <dd className="statsValueRow">
-                  <p className="statsValue">{reportedTotals.hasAny ? reportedTotals.potentials : "—"}</p>
+                  <p className="statsValue">
+                    {reportedTotals.hasAny ? reportedTotals.potentials : "—"}
+                  </p>
                   <div className="statsFooter">
                     <div className="text-sm">
-                      <span className="statsFooterText">From Stark breakdown</span>
+                      <span className="statsFooterText">
+                        From Stark breakdown
+                      </span>
                     </div>
                   </div>
                 </dd>

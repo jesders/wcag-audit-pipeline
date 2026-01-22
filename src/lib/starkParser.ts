@@ -992,7 +992,7 @@ export function consolidatedIssuesToHtmlDigest(
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M9 8h6m3 13.5H6A2.25 2.25 0 0 1 3.75 19.25V4.75A2.25 2.25 0 0 1 6 2.5h8.25L20.25 8.5v10.75A2.25 2.25 0 0 1 18 21.5Z" />
             </svg>
           </div>
-          <p class="statsLabel">${escapeHtml(sevLabel('Critical'))} occurrences</p>
+          <p class="statsLabel">${escapeHtml(sevLabel("Critical"))} occurrences</p>
         </dt>
         <dd class="statsValueRow">
           <p class="statsValue">${totalsBySeverity.Critical}</p>
@@ -1007,7 +1007,7 @@ export function consolidatedIssuesToHtmlDigest(
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M9 8h6m3 13.5H6A2.25 2.25 0 0 1 3.75 19.25V4.75A2.25 2.25 0 0 1 6 2.5h8.25L20.25 8.5v10.75A2.25 2.25 0 0 1 18 21.5Z" />
             </svg>
           </div>
-          <p class="statsLabel">${escapeHtml(sevLabel('Serious'))} occurrences</p>
+          <p class="statsLabel">${escapeHtml(sevLabel("Serious"))} occurrences</p>
         </dt>
         <dd class="statsValueRow">
           <p class="statsValue">${totalsBySeverity.Serious}</p>
@@ -1022,7 +1022,7 @@ export function consolidatedIssuesToHtmlDigest(
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M9 8h6m3 13.5H6A2.25 2.25 0 0 1 3.75 19.25V4.75A2.25 2.25 0 0 1 6 2.5h8.25L20.25 8.5v10.75A2.25 2.25 0 0 1 18 21.5Z" />
             </svg>
           </div>
-          <p class="statsLabel">${escapeHtml(sevLabel('Moderate'))} occurrences</p>
+          <p class="statsLabel">${escapeHtml(sevLabel("Moderate"))} occurrences</p>
         </dt>
         <dd class="statsValueRow">
           <p class="statsValue">${totalsBySeverity.Moderate}</p>
@@ -1037,7 +1037,7 @@ export function consolidatedIssuesToHtmlDigest(
               <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M9 8h6m3 13.5H6A2.25 2.25 0 0 1 3.75 19.25V4.75A2.25 2.25 0 0 1 6 2.5h8.25L20.25 8.5v10.75A2.25 2.25 0 0 1 18 21.5Z" />
             </svg>
           </div>
-          <p class="statsLabel">${escapeHtml(sevLabel('Minor'))} occurrences</p>
+          <p class="statsLabel">${escapeHtml(sevLabel("Minor"))} occurrences</p>
         </dt>
         <dd class="statsValueRow">
           <p class="statsValue">${totalsBySeverity.Minor}</p>

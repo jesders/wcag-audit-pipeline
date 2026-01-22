@@ -461,7 +461,7 @@ export function issuesToRemediationPlanHtml(
           <p class="statsLabel">Your estimate total</p>
         </dt>
         <dd class="statsValueRow">
-          <p class="statsValue">${totalEstimatedCount > 0 ? toHours(totalEstimatedHours) : '—'}</p>
+          <p class="statsValue">${totalEstimatedCount > 0 ? toHours(totalEstimatedHours) : "—"}</p>
           <div class="statsFooter"><div class="text-sm"><span class="statsFooterText">${totalEstimatedCount} of ${totalGroups} groups</span></div></div>
         </dd>
       </div>
