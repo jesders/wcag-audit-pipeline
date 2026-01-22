@@ -1,12 +1,13 @@
 @import "tailwindcss";
+@import "./stats.css";
 
 @layer base {
-	html {
-		height: 100%;
-	}
-	body {
-		min-height: 100vh;
-		@apply bg-slate-50 text-slate-900 antialiased;
-		@apply dark:bg-slate-950 dark:text-slate-50;
-	}
+  html {
+    height: 100%;
+  }
+  body {
+    min-height: 100vh;
+    @apply bg-slate-50 text-slate-900 antialiased;
+    @apply dark:bg-slate-950 dark:text-slate-50;
+  }
 }
