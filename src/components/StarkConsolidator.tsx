@@ -67,7 +67,6 @@ export function StarkConsolidator() {
 	const [issues, setIssues] = useState<ConsolidatedIssue[]>([]);
 	const [severityScheme, setSeverityScheme] = useState<SeverityScheme>('unknown');
 	const [showDebug, setShowDebug] = useState(false);
-	const [altOnly, setAltOnly] = useState(false);
 	const [overrides, setOverrides] = useState<EstimateOverrides>(() => {
 		try {
 			const raw = localStorage.getItem('stark-remediation-overrides-v1');
@@ -77,30 +76,24 @@ export function StarkConsolidator() {
 		}
 	});
 
-	const visibleIssues = useMemo(
-		() => (altOnly ? issues.filter((i) => categorizeIssue(i) === 'Alt text') : issues),
-		[issues, altOnly]
-	);
-	const totalIssues = useMemo(() => visibleIssues.reduce((acc, i) => acc + i.occurrences, 0), [visibleIssues]);
+	const totalIssues = useMemo(() => issues.reduce((acc, i) => acc + i.occurrences, 0), [issues]);
 
 	const planHtml = useMemo(() => {
 		if (issues.length === 0) return null;
 		return issuesToRemediationPlanHtml(issues, {
-			reportTitle: altOnly ? 'Alt Text Remediation Recommendations' : 'Accessibility Remediation Recommendations',
-			scopeCategory: altOnly ? 'Alt text' : undefined,
+			reportTitle: 'Accessibility Remediation Recommendations',
 			overrides,
 			severityScheme
 		});
-	}, [issues, altOnly, overrides, severityScheme]);
+	}, [issues, overrides, severityScheme]);
 
 	const digestHtml = useMemo(() => {
 		if (issues.length === 0) return null;
 		return consolidatedIssuesToHtmlDigest(issues, {
-			reportTitle: altOnly ? 'Alt Text Issues Digest' : 'Accessibility Issues Digest',
-			filterCategory: altOnly ? 'Alt text' : undefined,
+			reportTitle: 'Accessibility Issues Digest',
 			severityScheme
 		});
-	}, [issues, altOnly, severityScheme]);
+	}, [issues, severityScheme]);
 
 	const reportedTotals = useMemo(() => {
 		let violations = 0;
@@ -248,17 +241,6 @@ export function StarkConsolidator() {
 				</div>
 
 				<div className="mt-5 flex flex-wrap items-center gap-3">
-					<label className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 shadow-sm hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-200 dark:hover:bg-slate-900/50">
-						<input
-							type="checkbox"
-							checked={altOnly}
-							onChange={(e) => setAltOnly(e.currentTarget.checked)}
-							disabled={busy}
-							className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-2 focus:ring-slate-300 dark:border-white/20 dark:bg-slate-950"
-						/>
-						<span className="font-medium">Alt text only</span>
-					</label>
-
 					<label className="group inline-flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 dark:border-white/20 dark:bg-slate-900/30 dark:text-slate-100 dark:hover:bg-slate-900/50">
 						<ArrowUpTrayIcon className="h-5 w-5 text-slate-500 group-hover:text-slate-700 dark:text-slate-400 dark:group-hover:text-slate-200" />
 						<span>Choose HTML report files…</span>
@@ -336,10 +318,10 @@ export function StarkConsolidator() {
 				{busy && <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">Parsing…</p>}
 				{error && <p className="mt-3 text-sm font-medium text-red-700 dark:text-red-400">{error}</p>}
 
-				{visibleIssues.length > 0 && (
+				{issues.length > 0 && (
 					<div className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
 						<div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/5">
-							<div className="text-2xl font-semibold tracking-tight">{visibleIssues.length}</div>
+							<div className="text-2xl font-semibold tracking-tight">{issues.length}</div>
 							<div className="mt-1 text-sm text-slate-600 dark:text-slate-300">Unique issues</div>
 						</div>
 						<div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4 dark:border-white/10 dark:bg-white/5">
@@ -371,7 +353,7 @@ export function StarkConsolidator() {
 					</div>
 				)}
 
-				{visibleIssues.length > 0 && (
+				{issues.length > 0 && (
 					<div className="mt-6 overflow-x-auto rounded-2xl border border-slate-200 dark:border-white/10">
 						<table className="min-w-full divide-y divide-slate-200 text-sm dark:divide-white/10">
 						<thead>
@@ -387,7 +369,7 @@ export function StarkConsolidator() {
 							</tr>
 						</thead>
 						<tbody className="divide-y divide-slate-200 bg-white dark:divide-white/10 dark:bg-transparent">
-							{visibleIssues.slice(0, 50).map((i, idx) => {
+							{issues.slice(0, 50).map((i, idx) => {
 								const cat = categorizeIssue(i);
 								const key = `${cat}|${computeIssueKey(i)}`;
 								const your = overrides[key]?.hours;
