@@ -52,19 +52,20 @@ function formatSeverityBadge(
   scheme: SeverityScheme,
 ) {
   const label = formatSeverityLabel(severity, scheme);
+
   const color =
     severity === "Critical"
-      ? "bg-red-700 dark:bg-red-600"
+      ? "bg-red-600/15 text-red-800 dark:bg-red-600/20 dark:text-red-300"
       : severity === "Serious"
-        ? "bg-orange-700 dark:bg-orange-600"
+        ? "bg-orange-600/15 text-orange-900 dark:bg-orange-600/20 dark:text-orange-300"
         : severity === "Moderate"
-          ? "bg-amber-700 dark:bg-amber-600"
+          ? "bg-amber-600/15 text-amber-900 dark:bg-amber-600/20 dark:text-amber-300"
           : severity === "Minor"
-            ? "bg-emerald-700 dark:bg-emerald-600"
-            : "bg-slate-600";
+            ? "bg-emerald-600/15 text-emerald-900 dark:bg-emerald-600/20 dark:text-emerald-300"
+            : "bg-slate-500/15 text-slate-900 dark:bg-slate-600/20 dark:text-slate-200";
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold text-white ${color}`}
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${color}`}
     >
       {label}
     </span>
@@ -174,9 +175,9 @@ export function StarkConsolidator() {
       Minor: 0,
       Unknown: 0,
     };
-      for (const i of visibleIssues) counts[i.severity] += 1;
+    for (const i of visibleIssues) counts[i.severity] += 1;
     return counts;
-    }, [visibleIssues]);
+  }, [visibleIssues]);
 
   useEffect(() => {
     if (severityTab === "All") return;
@@ -826,38 +827,30 @@ export function StarkConsolidator() {
                 return (
                   <article
                     key={`${key}-${idx}`}
-                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950/40"
+                    className="relative rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900"
                   >
                     <header className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           {formatSeverityBadge(i.severity, severityScheme)}
-                          <span className="inline-flex items-center rounded-full bg-slate-900/5 px-2 py-0.5 text-xs font-semibold text-slate-900 dark:bg-white/10 dark:text-slate-50">
-                            {i.occurrences}×
-                          </span>
                           {i.wcag ? (
-                            <span className="inline-flex items-center rounded-full bg-slate-900/5 px-2 py-0.5 text-xs font-medium text-slate-900 dark:bg-white/10 dark:text-slate-50">
+                            <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300">
                               WCAG {i.wcag}
                             </span>
                           ) : null}
-                          <span className="inline-flex items-center rounded-full bg-slate-900/5 px-2 py-0.5 text-xs font-medium text-slate-900 dark:bg-white/10 dark:text-slate-50">
+                          <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300">
                             {cat}
                           </span>
-                        </div>
-
-                        <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-50">
-                          {i.title}
-                        </h4>
-
-                        <div className="mt-2 text-xs text-slate-600 dark:text-slate-300">
-                          {i.pages.length} pages impacted
+                          <span className="inline-flex items-center rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                            {i.occurrences}×
+                          </span>
                         </div>
                       </div>
 
                       <button
                         type="button"
                         onClick={() => dismissIssue(i)}
-                        className="inline-flex rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:hover:bg-white/5 dark:hover:text-slate-200 dark:focus-visible:ring-slate-500 dark:focus-visible:ring-offset-1 dark:focus-visible:ring-offset-slate-950"
+                        className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:hover:bg-white/5 dark:hover:text-white dark:focus-visible:ring-indigo-500 dark:focus-visible:ring-offset-1 dark:focus-visible:ring-offset-slate-900"
                         aria-label="Remove issue"
                         title="Remove"
                       >
@@ -866,66 +859,77 @@ export function StarkConsolidator() {
                       </button>
                     </header>
 
-                    {i.pages.length > 0 && (
-                      <details className="mt-3">
-                        <summary className="cursor-pointer select-none text-sm text-slate-600 dark:text-slate-300">
-                          View pages
-                        </summary>
-                        <div className="mt-2 grid gap-2">
-                          {i.pages.slice(0, 12).map((p) => (
-                            <div
-                              key={p}
-                              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs dark:border-white/10 dark:bg-white/5"
-                              style={{
-                                fontFamily:
-                                  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
-                              }}
-                            >
-                              {p}
-                            </div>
-                          ))}
-                          {i.pages.length > 12 && (
-                            <div className="text-xs text-slate-500 dark:text-slate-400">
-                              +{i.pages.length - 12} more
-                            </div>
-                          )}
-                        </div>
-                      </details>
-                    )}
+                    <div className="mt-4 grid gap-4 sm:grid-cols-[minmax(0,1fr)_320px] sm:items-start">
+                      <div className="min-w-0">
+                        <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-50">
+                          {i.title}
+                        </h4>
 
-                    <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                      <label className="grid gap-1">
-                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                          Your estimate (hrs)
-                        </span>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={your}
-                          onChange={(e) => {
-                            const v = e.currentTarget.value;
-                            const trimmed = v.trim();
-                            setEstimate(i, trimmed ? trimmed : undefined);
-                          }}
-                          placeholder="e.g. 3 or 2-3"
-                          className="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 shadow-sm outline-none ring-0 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-50 dark:focus:ring-white/10"
-                        />
-                      </label>
+                        {i.pages.length > 0 && (
+                          <details className="mt-3">
+                            <summary className="cursor-pointer select-none text-sm font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300">
+                              View pages
+                              <span className="ml-1 font-normal text-slate-500 dark:text-slate-400">
+                                ({i.pages.length} page{i.pages.length === 1 ? "" : "s"} impacted)
+                              </span>
+                            </summary>
+                            <div className="mt-3 grid gap-2">
+                              {i.pages.slice(0, 12).map((p) => (
+                                <div
+                                  key={p}
+                                  className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-800 dark:border-white/10 dark:bg-slate-800 dark:text-slate-100"
+                                  style={{
+                                    fontFamily:
+                                      'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                                  }}
+                                >
+                                  {p}
+                                </div>
+                              ))}
+                              {i.pages.length > 12 && (
+                                <div className="text-xs text-slate-500 dark:text-slate-400">
+                                  +{i.pages.length - 12} more
+                                </div>
+                              )}
+                            </div>
+                          </details>
+                        )}
+                      </div>
 
-                      <label className="grid gap-1">
-                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                          Notes
-                        </span>
-                        <textarea
-                          rows={2}
-                          value={notes}
-                          onChange={(e) =>
-                            setEstimateNotes(i, e.currentTarget.value)
-                          }
-                          placeholder="Optional"
-                          className="w-full resize-none rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 shadow-sm outline-none ring-0 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-50 dark:focus:ring-white/10"
-                        />
-                      </label>
+                      <div className="grid gap-3">
+                        <label className="grid gap-1">
+                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                            Your estimate (hrs)
+                          </span>
+                          <input
+                            type="text"
+                            inputMode="decimal"
+                            value={your}
+                            onChange={(e) => {
+                              const v = e.currentTarget.value;
+                              const trimmed = v.trim();
+                              setEstimate(i, trimmed ? trimmed : undefined);
+                            }}
+                            placeholder="e.g. 3 or 2-3"
+                            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-white/10 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500"
+                          />
+                        </label>
+
+                        <label className="grid gap-1">
+                          <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                            Notes
+                          </span>
+                          <textarea
+                            rows={4}
+                            value={notes}
+                            onChange={(e) =>
+                              setEstimateNotes(i, e.currentTarget.value)
+                            }
+                            placeholder="Optional"
+                            className="w-full min-h-24 resize-none rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-white/10 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500"
+                          />
+                        </label>
+                      </div>
                     </div>
                   </article>
                 );
