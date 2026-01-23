@@ -22,6 +22,8 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.18",
-    "tailwindcss": "^4.1.18"
+    "jsdom": "^26.1.0",
+    "tailwindcss": "^4.1.18",
+    "tsx": "^4.21.0"
   }
 }

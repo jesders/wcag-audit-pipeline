@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownTrayIcon,
+  ArrowUturnLeftIcon,
   ArrowUpTrayIcon,
   BugAntIcon,
   DocumentTextIcon,
   EyeIcon,
   TrashIcon,
+  XMarkIcon,
 } from "@heroicons/react/24/outline";
 import {
   consolidateIssues,
@@ -74,6 +76,23 @@ export function StarkConsolidator() {
   const [error, setError] = useState<string | null>(null);
   const [parsedFiles, setParsedFiles] = useState<ParsedFileResult[]>([]);
   const [issues, setIssues] = useState<ConsolidatedIssue[]>([]);
+  const [hiddenIssueKeys, setHiddenIssueKeys] = useState<
+    Record<string, true>
+  >(() => {
+    try {
+      const raw = localStorage.getItem("wcag-audit-hidden-issues-v1");
+      if (!raw) return {};
+      const parsed = JSON.parse(raw) as unknown;
+      if (!Array.isArray(parsed)) return {};
+      const next: Record<string, true> = {};
+      for (const k of parsed) {
+        if (typeof k === "string" && k) next[k] = true;
+      }
+      return next;
+    } catch {
+      return {};
+    }
+  });
   const [severityScheme, setSeverityScheme] =
     useState<SeverityScheme>("unknown");
   const [showDebug, setShowDebug] = useState(false);
@@ -85,6 +104,15 @@ export function StarkConsolidator() {
   >(null);
   const digestActionsRef = useRef<HTMLDivElement | null>(null);
   const planActionsRef = useRef<HTMLDivElement | null>(null);
+  const [snippetHtml, setSnippetHtml] = useState("");
+  const [snippetError, setSnippetError] = useState<string | null>(null);
+  const [snippetResult, setSnippetResult] = useState<
+    | {
+        issues: ParsedIssue[];
+        debug: ParseDebugInfo;
+      }
+    | null
+  >(null);
   const [overrides, setOverrides] = useState<EstimateOverrides>(() => {
     try {
       const raw = localStorage.getItem("stark-remediation-overrides-v1");
@@ -94,7 +122,11 @@ export function StarkConsolidator() {
       for (const k of Object.keys(parsed)) {
         const v = parsed[k];
         if (!v) continue;
-        if (!v.estimate && typeof v.hours === "number" && Number.isFinite(v.hours)) {
+        if (
+          !v.estimate &&
+          typeof v.hours === "number" &&
+          Number.isFinite(v.hours)
+        ) {
           (v as unknown as { estimate?: string }).estimate = String(v.hours);
         }
       }
@@ -104,9 +136,31 @@ export function StarkConsolidator() {
     }
   });
 
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        "wcag-audit-hidden-issues-v1",
+        JSON.stringify(Object.keys(hiddenIssueKeys)),
+      );
+    } catch {
+      // ignore
+    }
+  }, [hiddenIssueKeys]);
+
+  const visibleIssues = useMemo(() => {
+    if (issues.length === 0) return issues;
+    const visible: ConsolidatedIssue[] = [];
+    for (const issue of issues) {
+      const key = `${categorizeIssue(issue)}|${computeIssueKey(issue)}`;
+      if (hiddenIssueKeys[key]) continue;
+      visible.push(issue);
+    }
+    return visible;
+  }, [issues, hiddenIssueKeys]);
+
   const totalIssues = useMemo(
-    () => issues.reduce((acc, i) => acc + i.occurrences, 0),
-    [issues],
+    () => visibleIssues.reduce((acc, i) => acc + i.occurrences, 0),
+    [visibleIssues],
   );
 
   const severityCounts = useMemo(() => {
@@ -120,9 +174,9 @@ export function StarkConsolidator() {
       Minor: 0,
       Unknown: 0,
     };
-    for (const i of issues) counts[i.severity] += 1;
+      for (const i of visibleIssues) counts[i.severity] += 1;
     return counts;
-  }, [issues]);
+    }, [visibleIssues]);
 
   useEffect(() => {
     if (severityTab === "All") return;
@@ -130,26 +184,26 @@ export function StarkConsolidator() {
   }, [severityCounts, severityTab]);
 
   const filteredIssues = useMemo(() => {
-    if (severityTab === "All") return issues;
-    return issues.filter((i) => i.severity === severityTab);
-  }, [issues, severityTab]);
+    if (severityTab === "All") return visibleIssues;
+    return visibleIssues.filter((i) => i.severity === severityTab);
+  }, [visibleIssues, severityTab]);
 
   const planHtml = useMemo(() => {
-    if (issues.length === 0) return null;
-    return issuesToRemediationPlanHtml(issues, {
+    if (visibleIssues.length === 0) return null;
+    return issuesToRemediationPlanHtml(visibleIssues, {
       reportTitle: "Remediation Recommendations",
       overrides,
       severityScheme,
     });
-  }, [issues, overrides, severityScheme]);
+  }, [visibleIssues, overrides, severityScheme]);
 
   const digestHtml = useMemo(() => {
-    if (issues.length === 0) return null;
-    return consolidatedIssuesToHtmlDigest(issues, {
+    if (visibleIssues.length === 0) return null;
+    return consolidatedIssuesToHtmlDigest(visibleIssues, {
       reportTitle: "Issues Digest",
       severityScheme,
     });
-  }, [issues, severityScheme]);
+  }, [visibleIssues, severityScheme]);
 
   const canOpenDigest = Boolean(digestHtml) && !busy;
   const canOpenPlan = Boolean(planHtml) && !busy;
@@ -200,6 +254,7 @@ export function StarkConsolidator() {
     setIssues([]);
     setParsedFiles([]);
     setOverrides({});
+    setHiddenIssueKeys({});
     setSeverityScheme("unknown");
 
     if (!fileList || fileList.length === 0) return;
@@ -257,6 +312,25 @@ export function StarkConsolidator() {
     });
   }
 
+  function dismissIssue(issue: ConsolidatedIssue) {
+    const key = `${categorizeIssue(issue)}|${computeIssueKey(issue)}`;
+    setHiddenIssueKeys((prev) => {
+      if (prev[key]) return prev;
+      return { ...prev, [key]: true };
+    });
+    // If the user dismisses an issue, also drop its overrides so exports stay clean.
+    setOverrides((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  }
+
+  function restoreDismissedIssues() {
+    setHiddenIssueKeys({});
+  }
+
   function setEstimateNotes(issue: ConsolidatedIssue, notes: string) {
     const key = `${categorizeIssue(issue)}|${computeIssueKey(issue)}`;
     setOverrides((prev) => {
@@ -266,13 +340,29 @@ export function StarkConsolidator() {
       if (!trimmed) {
         if (!next[key]) return prev;
         next[key] = { ...next[key], notes: undefined };
-        if (!next[key]?.notes && next[key]?.hours === undefined)
-          delete next[key];
+        if (!next[key]?.notes && !next[key]?.estimate) delete next[key];
         return next;
       }
       next[key] = { ...(next[key] ?? {}), notes: normalized };
       return next;
     });
+  }
+
+  function analyzeSnippet() {
+    const trimmed = snippetHtml.trim();
+    if (!trimmed) {
+      setSnippetError(null);
+      setSnippetResult(null);
+      return;
+    }
+    try {
+      setSnippetError(null);
+      const parsed = parseStarkHtmlReport(trimmed, "pasted-snippet.html");
+      setSnippetResult({ issues: parsed.issues, debug: parsed.debug });
+    } catch (e) {
+      setSnippetResult(null);
+      setSnippetError(e instanceof Error ? e.message : "Failed to parse snippet");
+    }
   }
 
   function clearEstimates() {
@@ -363,6 +453,16 @@ export function StarkConsolidator() {
                 >
                   <TrashIcon className="h-5 w-5 text-slate-500 dark:text-slate-300" />
                   Clear estimates
+                </button>
+
+                <button
+                  type="button"
+                  onClick={restoreDismissedIssues}
+                  disabled={busy || Object.keys(hiddenIssueKeys).length === 0}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-100 dark:hover:bg-slate-900/50"
+                >
+                  <ArrowUturnLeftIcon className="h-5 w-5 text-slate-500 dark:text-slate-300" />
+                  Restore removed
                 </button>
               </div>
             </div>
@@ -496,7 +596,7 @@ export function StarkConsolidator() {
         </p>
       )}
 
-        {issues.length > 0 && (
+        {visibleIssues.length > 0 && (
           <div className="mt-6">
             <h3 className="statsTitle">Totals</h3>
             <dl className="statsGrid">
@@ -508,7 +608,7 @@ export function StarkConsolidator() {
                   <p className="statsLabel">Unique issues</p>
                 </dt>
                 <dd className="statsValueRow">
-                  <p className="statsValue">{issues.length}</p>
+                  <p className="statsValue">{visibleIssues.length}</p>
                   <div className="statsFooter">
                     <div className="text-sm">
                       <span className="statsFooterText">Details below</span>
@@ -621,7 +721,7 @@ export function StarkConsolidator() {
           </div>
         )}
 
-        {issues.length > 0 && (
+        {visibleIssues.length > 0 && (
           <div className="mt-6">
             <div className="grid gap-3">
               <div className="pb-4">
@@ -641,7 +741,7 @@ export function StarkConsolidator() {
                       className="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-2 pr-8 pl-3 text-base text-slate-900 outline-1 -outline-offset-1 outline-slate-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-slate-900 dark:focus:outline-white"
                     >
                       <option value="All">
-                        All ({issues.length})
+                        All ({visibleIssues.length})
                       </option>
                       {(Object.keys(severityCounts) as Array<
                         keyof typeof severityCounts
@@ -683,7 +783,7 @@ export function StarkConsolidator() {
                       ).map((s) => {
                         const active = severityTab === s;
                         const count =
-                          s === "All" ? issues.length : severityCounts[s];
+                          s === "All" ? visibleIssues.length : severityCounts[s];
                         const disabled = s !== "All" && count === 0;
                         const label =
                           s === "All"
@@ -753,6 +853,17 @@ export function StarkConsolidator() {
                           {i.pages.length} pages impacted
                         </div>
                       </div>
+
+                      <button
+                        type="button"
+                        onClick={() => dismissIssue(i)}
+                        className="inline-flex rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 focus-visible:outline-hidden focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:hover:bg-white/5 dark:hover:text-slate-200 dark:focus-visible:ring-slate-500 dark:focus-visible:ring-offset-1 dark:focus-visible:ring-offset-slate-950"
+                        aria-label="Remove issue"
+                        title="Remove"
+                      >
+                        <span className="sr-only">Dismiss</span>
+                        <XMarkIcon className="h-5 w-5" />
+                      </button>
                     </header>
 
                     {i.pages.length > 0 && (
@@ -822,7 +933,7 @@ export function StarkConsolidator() {
             </div>
 
             <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
-              Showing first 50 consolidated issues for the selected severity.
+              Showing first 50 visible issues for the selected severity.
               Your estimates are saved locally and included in the remediation
               export.
             </p>
@@ -834,6 +945,149 @@ export function StarkConsolidator() {
             <h2 className="text-lg font-semibold tracking-tight">
               Parse debug
             </h2>
+
+            <details className="mt-3 rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3 dark:border-white/10 dark:bg-white/5">
+              <summary>
+                <span className="cursor-pointer select-none text-sm font-medium text-slate-900 dark:text-slate-50">
+                  Analyze HTML snippet
+                </span>
+                <span className="ml-2 text-sm text-slate-600 dark:text-slate-300">
+                  — paste a fragment and see what the scraper extracts
+                </span>
+              </summary>
+              <div className="mt-3 grid gap-3">
+                <label className="grid gap-1">
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                    Stark HTML (full report or fragment)
+                  </span>
+                  <textarea
+                    rows={6}
+                    value={snippetHtml}
+                    onChange={(e) => setSnippetHtml(e.currentTarget.value)}
+                    placeholder="Paste HTML here…"
+                    className="w-full resize-none rounded-xl border border-slate-300 bg-white px-3 py-2 text-xs text-slate-900 shadow-sm outline-none ring-0 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-50 dark:focus:ring-white/10"
+                    style={{
+                      fontFamily:
+                        'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                    }}
+                  />
+                </label>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={analyzeSnippet}
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-100 dark:hover:bg-slate-900/50"
+                  >
+                    Analyze snippet
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSnippetHtml("");
+                      setSnippetError(null);
+                      setSnippetResult(null);
+                    }}
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-100 dark:hover:bg-slate-900/50"
+                  >
+                    Clear
+                  </button>
+                </div>
+
+                {snippetError && (
+                  <p className="text-sm font-medium text-red-700 dark:text-red-400">
+                    {snippetError}
+                  </p>
+                )}
+
+                {snippetResult && (
+                  <div className="grid gap-3">
+                    <p className="text-sm text-slate-700 dark:text-slate-200">
+                      Extracted <strong>{snippetResult.issues.length}</strong>{" "}
+                      issues. Tables found: {snippetResult.debug.tablesFound}, matched:{" "}
+                      {snippetResult.debug.matchedTables}.
+                    </p>
+
+                    {snippetResult.debug.reportTotals && (
+                      <p className="text-sm text-slate-700 dark:text-slate-200">
+                        Report totals — Violations:{" "}
+                        {snippetResult.debug.reportTotals.violations ?? "—"}, Potential:{" "}
+                        {snippetResult.debug.reportTotals.potentialViolations ?? "—"}
+                      </p>
+                    )}
+
+                    {snippetResult.debug.wcagBreakdownTotals && (
+                      <p className="text-sm text-slate-700 dark:text-slate-200">
+                        WCAG breakdown — Criteria:{" "}
+                        {snippetResult.debug.wcagBreakdownTotals.criteriaWithCounts},
+                        Failures: {snippetResult.debug.wcagBreakdownTotals.failures},
+                        Potentials: {snippetResult.debug.wcagBreakdownTotals.potentials}
+                      </p>
+                    )}
+
+                    {snippetResult.debug.warnings.length > 0 && (
+                      <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-100">
+                        <div className="text-xs font-semibold uppercase tracking-wide">
+                          Warnings
+                        </div>
+                        <ul className="mt-1 list-disc space-y-1 pl-5">
+                          {snippetResult.debug.warnings.map((w, idx) => (
+                            <li key={idx}>{w}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {snippetResult.issues.length > 0 && (
+                      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white dark:border-white/10 dark:bg-transparent">
+                        <table className="min-w-full divide-y divide-slate-200 text-xs dark:divide-white/10">
+                          <thead>
+                            <tr className="bg-slate-50 text-[11px] font-semibold uppercase tracking-wide text-slate-600 dark:bg-white/5 dark:text-slate-300">
+                              <th scope="col" className="px-3 py-2 text-left">
+                                Severity
+                              </th>
+                              <th scope="col" className="px-3 py-2 text-left">
+                                Occ
+                              </th>
+                              <th scope="col" className="px-3 py-2 text-left">
+                                WCAG
+                              </th>
+                              <th scope="col" className="px-3 py-2 text-left">
+                                Title
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-200 bg-white dark:divide-white/10 dark:bg-transparent">
+                            {snippetResult.issues.slice(0, 25).map((i, idx) => (
+                              <tr key={idx}>
+                                <td className="px-3 py-2 text-slate-700 dark:text-slate-200">
+                                  {formatSeverityLabel(i.severity, snippetResult.debug.severityScheme ?? "unknown")}
+                                </td>
+                                <td className="px-3 py-2 text-slate-700 dark:text-slate-200">
+                                  {i.occurrences}
+                                </td>
+                                <td className="px-3 py-2 text-slate-700 dark:text-slate-200">
+                                  {i.wcag ?? "—"}
+                                </td>
+                                <td className="px-3 py-2 text-slate-700 dark:text-slate-200">
+                                  {i.title}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {snippetResult.issues.length > 25 && (
+                          <div className="px-3 py-2 text-xs text-slate-500 dark:text-slate-400">
+                            Showing first 25 extracted issues.
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </details>
+
             {parsedFiles.map((f) => (
               <details
                 key={f.fileName}
