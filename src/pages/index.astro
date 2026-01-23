@@ -19,8 +19,5 @@ const vercelCommit = vercelSha ? vercelSha.slice(0, 7) : undefined;
 	</head>
 	<body>
 		<StarkConsolidator client:load />
-		<footer style="padding: 12px; font-size: 12px; color: #6b7280; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;">
-			Build: {vercelCommit ?? 'local'} • {vercelEnv ?? 'unknown-env'} • {buildTimeIso}
-		</footer>
 	</body>
 </html>

@@ -94,7 +94,7 @@ export function StarkConsolidator() {
   const planHtml = useMemo(() => {
     if (issues.length === 0) return null;
     return issuesToRemediationPlanHtml(issues, {
-      reportTitle: "WCAG Audit Pipeline — Remediation Recommendations",
+      reportTitle: "Remediation Recommendations",
       overrides,
       severityScheme,
     });
@@ -103,7 +103,7 @@ export function StarkConsolidator() {
   const digestHtml = useMemo(() => {
     if (issues.length === 0) return null;
     return consolidatedIssuesToHtmlDigest(issues, {
-      reportTitle: "WCAG Audit Pipeline — Issues Digest",
+      reportTitle: "Issues Digest",
       severityScheme,
     });
   }, [issues, severityScheme]);
@@ -255,94 +255,156 @@ export function StarkConsolidator() {
 
   return (
     <div className="mx-auto max-w-6xl p-6">
-      <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-6 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/40">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight">
-              WCAG Audit Pipeline
-            </h1>
-            <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Upload Stark HTML report(s). The app extracts issues, builds a
-              consolidated issue list with severity labels, and generates
-              remediation recommendations.
-            </p>
+      <div className="overflow-hidden rounded-2xl border border-slate-200/70 bg-white/80 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/40">
+        <h2 id="pipeline-overview-title" className="sr-only">
+          WCAG Audit Pipeline Overview
+        </h2>
+
+        <div className="p-6">
+          <div className="sm:flex sm:items-center sm:justify-between">
+            <div className="sm:flex sm:gap-4">
+              <div className="shrink-0">
+                <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-slate-900/5 text-slate-700 dark:bg-white/10 dark:text-slate-200 dark:outline dark:-outline-offset-1 dark:outline-white/10">
+                  <DocumentTextIcon className="h-6 w-6" />
+                </div>
+              </div>
+
+              <div className="mt-4 text-center sm:mt-0 sm:text-left">
+                <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                  Upload Stark HTML report(s)
+                </p>
+                <h1 className="text-xl font-semibold tracking-tight">
+                  WCAG Audit Pipeline
+                </h1>
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+                  The app extracts issues, builds a consolidated issue list with
+                  severity labels, and generates remediation recommendations.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 flex flex-col items-center gap-2 sm:mt-0 sm:items-end">
+              <label className="group inline-flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 dark:border-white/20 dark:bg-slate-900/30 dark:text-slate-50 dark:hover:bg-slate-900/50">
+                <ArrowUpTrayIcon className="h-5 w-5 text-slate-500 group-hover:text-slate-700 dark:text-slate-300 dark:group-hover:text-slate-100" />
+                <span>Choose HTML report files…</span>
+                <input
+                  type="file"
+                  accept="text/html,.html"
+                  multiple
+                  onChange={(e) => void onFilesSelected(e.currentTarget.files)}
+                  disabled={busy}
+                  className="sr-only"
+                />
+              </label>
+
+              <div className="flex flex-wrap justify-center gap-2 sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setShowDebug((v) => !v)}
+                  disabled={parsedFiles.length === 0}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-100 dark:hover:bg-slate-900/50"
+                >
+                  <BugAntIcon className="h-5 w-5 text-slate-500 dark:text-slate-300" />
+                  {showDebug ? "Hide debug" : "Show debug"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={clearEstimates}
+                  disabled={busy || Object.keys(overrides).length === 0}
+                  className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-100 dark:hover:bg-slate-900/50"
+                >
+                  <TrashIcon className="h-5 w-5 text-slate-500 dark:text-slate-300" />
+                  Clear estimates
+                </button>
+              </div>
+            </div>
           </div>
         </div>
 
-        <div className="mt-5 flex flex-wrap items-center gap-3">
-          <label className="group inline-flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 dark:border-white/20 dark:bg-slate-900/30 dark:text-slate-100 dark:hover:bg-slate-900/50">
-            <ArrowUpTrayIcon className="h-5 w-5 text-slate-500 group-hover:text-slate-700 dark:text-slate-400 dark:group-hover:text-slate-200" />
-            <span>Choose HTML report files…</span>
-            <input
-              type="file"
-              accept="text/html,.html"
-              multiple
-              onChange={(e) => void onFilesSelected(e.currentTarget.files)}
-              disabled={busy}
-              className="sr-only"
-            />
-          </label>
-
-          <button
-            type="button"
-            onClick={() => setShowDebug((v) => !v)}
-            disabled={parsedFiles.length === 0}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-100 dark:hover:bg-slate-900/50"
-          >
-            <BugAntIcon className="h-5 w-5 text-slate-500 dark:text-slate-300" />
-            {showDebug ? "Hide debug" : "Show debug"}
-          </button>
-
-          <button
-            type="button"
-            onClick={clearEstimates}
-            disabled={busy || Object.keys(overrides).length === 0}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-100 dark:hover:bg-slate-900/50"
-          >
-            <TrashIcon className="h-5 w-5 text-slate-500 dark:text-slate-300" />
-            Clear estimates
-          </button>
-
-          <button
-            type="button"
-            onClick={openDigestPreview}
-            disabled={!digestHtml || busy}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-100 dark:hover:bg-slate-900/50"
-          >
-            <DocumentTextIcon className="h-5 w-5 text-slate-500 dark:text-slate-300" />
-            Preview issues digest
-          </button>
-
-          <button
-            type="button"
-            onClick={downloadDigest}
-            disabled={!digestHtml || busy}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-100 dark:hover:bg-slate-900/50"
-          >
-            <ArrowDownTrayIcon className="h-5 w-5 text-slate-500 dark:text-slate-300" />
-            Download issues digest (HTML)
-          </button>
-
-          <button
-            type="button"
-            onClick={openPlanPreview}
-            disabled={!planHtml || busy}
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-100 dark:hover:bg-slate-900/50"
-          >
-            <EyeIcon className="h-5 w-5 text-slate-500 dark:text-slate-300" />
-            Preview remediation recommendations
-          </button>
-
-          <button
-            type="button"
-            onClick={downloadPlan}
-            disabled={!planHtml || busy}
-            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
-          >
-            <ArrowDownTrayIcon className="h-5 w-5" />
-            Download remediation recommendations (HTML)
-          </button>
+        <div className="grid grid-cols-1 divide-y divide-slate-200 border-t border-slate-200 bg-slate-50/70 sm:grid-cols-3 sm:divide-x sm:divide-y-0 dark:divide-white/10 dark:border-white/10 dark:bg-white/5">
+          <div className="px-6 py-5 text-center text-sm font-medium">
+            <span className="text-slate-900 dark:text-white">
+              {parsedFiles.length}
+            </span>{" "}
+            <span className="text-slate-600 dark:text-slate-300">
+              Files parsed
+            </span>
+          </div>
+          <div className="px-6 py-5 text-center text-sm font-medium">
+            <span className="text-slate-900 dark:text-white">{issues.length}</span>{" "}
+            <span className="text-slate-600 dark:text-slate-300">
+              Unique issues
+            </span>
+          </div>
+          <div className="px-6 py-5 text-center text-sm font-medium">
+            <span className="text-slate-900 dark:text-white">{totalIssues}</span>{" "}
+            <span className="text-slate-600 dark:text-slate-300">
+              Total occurrences
+            </span>
+          </div>
         </div>
+      </div>
+
+      <div className="mt-6 grid gap-4 sm:grid-cols-2">
+        <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/40">
+          <h2 className="text-base font-semibold tracking-tight text-slate-900 dark:text-slate-50">
+            Issues digest
+          </h2>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+            Consolidated issue list with severity labels.
+          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={openDigestPreview}
+              disabled={!digestHtml || busy}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-100 dark:hover:bg-slate-900/50"
+            >
+              <EyeIcon className="h-5 w-5 text-slate-500 dark:text-slate-300" />
+              Preview
+            </button>
+            <button
+              type="button"
+              onClick={downloadDigest}
+              disabled={!digestHtml || busy}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-100 dark:hover:bg-slate-900/50"
+            >
+              <ArrowDownTrayIcon className="h-5 w-5 text-slate-500 dark:text-slate-300" />
+              Download (HTML)
+            </button>
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/40">
+          <h2 className="text-base font-semibold tracking-tight text-slate-900 dark:text-slate-50">
+            Remediation recommendations
+          </h2>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+            Export a prioritized plan, with optional time estimates.
+          </p>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={openPlanPreview}
+              disabled={!planHtml || busy}
+              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-100 dark:hover:bg-slate-900/50"
+            >
+              <EyeIcon className="h-5 w-5 text-slate-500 dark:text-slate-300" />
+              Preview
+            </button>
+            <button
+              type="button"
+              onClick={downloadPlan}
+              disabled={!planHtml || busy}
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+            >
+              <ArrowDownTrayIcon className="h-5 w-5" />
+              Download (HTML)
+            </button>
+          </div>
+        </div>
+      </div>
 
         {busy && (
           <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
@@ -658,7 +720,6 @@ export function StarkConsolidator() {
             ))}
           </div>
         )}
-      </div>
     </div>
   );
 }

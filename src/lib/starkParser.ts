@@ -876,7 +876,9 @@ export function consolidatedIssuesToHtmlDigest(
   issues: ConsolidatedIssue[],
   options: HtmlDigestOptions = {},
 ): string {
-  const title = options.reportTitle ?? "WCAG Audit Pipeline — Issues Digest";
+  const appName = "WCAG Audit Pipeline";
+  const docTitle = options.reportTitle ?? "Issues Digest";
+  const pageTitle = `${appName} — ${docTitle}`;
   const generatedAt = options.generatedAt ?? new Date();
   const filteredIssues = options.filterCategory
     ? issues.filter((i) => categorizeIssue(i) === options.filterCategory)
@@ -973,15 +975,17 @@ export function consolidatedIssuesToHtmlDigest(
 <head>
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
-	<title>${escapeHtml(title)}</title>
+  <title>${escapeHtml(pageTitle)}</title>
 	<style>${exportCss}</style>
 </head>
 <body>
 	<div class="container">
-		<div class="header">
-			<h1>${escapeHtml(title)}</h1>
-      <div class="sub">Generated ${escapeHtml(generatedLabel)} • Consolidated issue list with severity labels • ${totalUnique} unique issues • ${totalOccurrences} total occurrences</div>
-		</div>
+    <div class="card header">
+      <h2 class="sr-only">Report overview</h2>
+      <p class="kicker">${escapeHtml(appName)}</p>
+      <h1>${escapeHtml(docTitle)}</h1>
+      <div class="sub">Consolidated issue list with severity labels • Generated ${escapeHtml(generatedLabel)} • ${totalUnique} unique issues • ${totalOccurrences} total occurrences</div>
+    </div>
 
     <h3 class="statsTitle">Totals</h3>
     <dl class="statsGrid">
