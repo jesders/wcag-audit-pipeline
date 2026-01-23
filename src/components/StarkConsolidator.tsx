@@ -310,7 +310,7 @@ export function StarkConsolidator() {
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-100 dark:hover:bg-slate-900/50"
           >
             <DocumentTextIcon className="h-5 w-5 text-slate-500 dark:text-slate-300" />
-            Open digest preview
+            Preview issues digest
           </button>
 
           <button
@@ -320,7 +320,7 @@ export function StarkConsolidator() {
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-100 dark:hover:bg-slate-900/50"
           >
             <ArrowDownTrayIcon className="h-5 w-5 text-slate-500 dark:text-slate-300" />
-            Download digest HTML
+            Download issues digest (HTML)
           </button>
 
           <button
@@ -330,7 +330,7 @@ export function StarkConsolidator() {
             className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-100 dark:hover:bg-slate-900/50"
           >
             <EyeIcon className="h-5 w-5 text-slate-500 dark:text-slate-300" />
-            Open preview
+            Preview remediation recommendations
           </button>
 
           <button
@@ -340,7 +340,7 @@ export function StarkConsolidator() {
             className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
           >
             <ArrowDownTrayIcon className="h-5 w-5" />
-            Download remediation HTML
+            Download remediation recommendations (HTML)
           </button>
         </div>
 
