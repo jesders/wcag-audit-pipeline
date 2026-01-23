@@ -77,6 +77,9 @@ export function StarkConsolidator() {
   const [severityScheme, setSeverityScheme] =
     useState<SeverityScheme>("unknown");
   const [showDebug, setShowDebug] = useState(false);
+  const [severityTab, setSeverityTab] = useState<
+    "All" | "Critical" | "Serious" | "Moderate" | "Minor" | "Unknown"
+  >("All");
   const [exportActionsOpen, setExportActionsOpen] = useState<
     "digest" | "plan" | null
   >(null);
@@ -95,6 +98,31 @@ export function StarkConsolidator() {
     () => issues.reduce((acc, i) => acc + i.occurrences, 0),
     [issues],
   );
+
+  const severityCounts = useMemo(() => {
+    const counts: Record<
+      "Critical" | "Serious" | "Moderate" | "Minor" | "Unknown",
+      number
+    > = {
+      Critical: 0,
+      Serious: 0,
+      Moderate: 0,
+      Minor: 0,
+      Unknown: 0,
+    };
+    for (const i of issues) counts[i.severity] += 1;
+    return counts;
+  }, [issues]);
+
+  useEffect(() => {
+    if (severityTab === "All") return;
+    if (severityCounts[severityTab] === 0) setSeverityTab("All");
+  }, [severityCounts, severityTab]);
+
+  const filteredIssues = useMemo(() => {
+    if (severityTab === "All") return issues;
+    return issues.filter((i) => i.severity === severityTab);
+  }, [issues, severityTab]);
 
   const planHtml = useMemo(() => {
     if (issues.length === 0) return null;
@@ -585,7 +613,100 @@ export function StarkConsolidator() {
         {issues.length > 0 && (
           <div className="mt-6">
             <div className="grid gap-3">
-              {issues.slice(0, 50).map((i, idx) => {
+              <div className="pb-4">
+                <h3 className="text-base font-semibold text-slate-900 dark:text-white">
+                  Issues
+                </h3>
+                <div className="mt-3 sm:mt-4">
+                  <div className="grid grid-cols-1 sm:hidden">
+                    <select
+                      aria-label="Select a severity tab"
+                      value={severityTab}
+                      onChange={(e) =>
+                        setSeverityTab(
+                          e.currentTarget.value as typeof severityTab,
+                        )
+                      }
+                      className="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-2 pr-8 pl-3 text-base text-slate-900 outline-1 -outline-offset-1 outline-slate-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-slate-900 dark:focus:outline-white"
+                    >
+                      <option value="All">
+                        All ({issues.length})
+                      </option>
+                      {(Object.keys(severityCounts) as Array<
+                        keyof typeof severityCounts
+                      >).map((s) => (
+                        <option key={s} value={s}>
+                          {formatSeverityLabel(s, severityScheme)} (
+                          {severityCounts[s]})
+                        </option>
+                      ))}
+                    </select>
+                    <svg
+                      viewBox="0 0 16 16"
+                      fill="currentColor"
+                      aria-hidden="true"
+                      className="pointer-events-none col-start-1 row-start-1 mr-2 size-5 self-center justify-self-end fill-slate-500 dark:fill-slate-400"
+                    >
+                      <path
+                        d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z"
+                        clipRule="evenodd"
+                        fillRule="evenodd"
+                      />
+                    </svg>
+                  </div>
+
+                  <div className="hidden sm:block">
+                    <nav
+                      className="flex flex-wrap border-b border-slate-200 dark:border-white/10"
+                      aria-label="Severity tabs"
+                    >
+                      {(
+                        [
+                          "All",
+                          "Critical",
+                          "Serious",
+                          "Moderate",
+                          "Minor",
+                          "Unknown",
+                        ] as const
+                      ).map((s) => {
+                        const active = severityTab === s;
+                        const count =
+                          s === "All" ? issues.length : severityCounts[s];
+                        const disabled = s !== "All" && count === 0;
+                        const label =
+                          s === "All"
+                            ? "All"
+                            : formatSeverityLabel(s, severityScheme);
+                        return (
+                          <button
+                            key={s}
+                            type="button"
+                            disabled={disabled}
+                            onClick={() => setSeverityTab(s)}
+                            aria-current={active ? "page" : undefined}
+                            className={
+                              disabled
+                                ? "-mb-px border-b-2 border-transparent px-3 py-3 text-sm font-medium whitespace-nowrap text-slate-300 dark:text-slate-500"
+                                :
+                              active
+                                ? "-mb-px border-b-2 border-indigo-500 px-3 py-3 text-sm font-medium whitespace-nowrap text-indigo-600 dark:border-indigo-400 dark:text-indigo-300"
+                                : "-mb-px border-b-2 border-transparent px-3 py-3 text-sm font-medium whitespace-nowrap text-slate-500 hover:border-slate-300 hover:text-slate-700 dark:text-slate-300 dark:hover:border-white/20 dark:hover:text-white"
+                            }
+                          >
+                            {label}
+                            <span className="ml-2 text-xs font-semibold text-slate-400 dark:text-slate-400">
+                              {count}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </nav>
+                  </div>
+                </div>
+              </div>
+
+              {filteredIssues.slice(0, 50).map((i, idx) => {
                 const cat = categorizeIssue(i);
                 const key = `${cat}|${computeIssueKey(i)}`;
                 const your = overrides[key]?.hours;
@@ -696,8 +817,9 @@ export function StarkConsolidator() {
             </div>
 
             <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
-              Showing first 50 consolidated issues. Your estimates are saved
-              locally and included in the remediation export.
+              Showing first 50 consolidated issues for the selected severity.
+              Your estimates are saved locally and included in the remediation
+              export.
             </p>
           </div>
         )}
