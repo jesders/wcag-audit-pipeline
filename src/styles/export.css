@@ -70,11 +70,11 @@
   }
 
   .big {
-    @apply text-2xl font-semibold tracking-tight;
+    @apply text-2xl font-semibold leading-tight tracking-tight text-slate-900 dark:text-slate-50;
   }
 
   .small {
-    @apply mt-1 text-sm text-slate-600 dark:text-slate-300;
+    @apply text-sm leading-relaxed text-slate-600 dark:text-slate-300;
   }
 
   .section {
@@ -192,7 +192,7 @@
 
   /* Remediation doc helpers */
   .kicker {
-    @apply mt-2 text-sm text-slate-700 dark:text-slate-200;
+    @apply text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300;
   }
 
   .title {

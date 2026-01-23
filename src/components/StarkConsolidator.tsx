@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowDownTrayIcon,
   ArrowUpTrayIcon,
@@ -80,6 +80,8 @@ export function StarkConsolidator() {
   const [exportActionsOpen, setExportActionsOpen] = useState<
     "digest" | "plan" | null
   >(null);
+  const digestActionsRef = useRef<HTMLDivElement | null>(null);
+  const planActionsRef = useRef<HTMLDivElement | null>(null);
   const [overrides, setOverrides] = useState<EstimateOverrides>(() => {
     try {
       const raw = localStorage.getItem("stark-remediation-overrides-v1");
@@ -113,6 +115,19 @@ export function StarkConsolidator() {
 
   const canOpenDigest = Boolean(digestHtml) && !busy;
   const canOpenPlan = Boolean(planHtml) && !busy;
+
+  useEffect(() => {
+    if (!exportActionsOpen) return;
+    function onPointerDown(e: PointerEvent) {
+      const target = e.target;
+      if (!(target instanceof Node)) return;
+      if (digestActionsRef.current?.contains(target)) return;
+      if (planActionsRef.current?.contains(target)) return;
+      setExportActionsOpen(null);
+    }
+    window.addEventListener("pointerdown", onPointerDown);
+    return () => window.removeEventListener("pointerdown", onPointerDown);
+  }, [exportActionsOpen]);
 
   const reportedTotals = useMemo(() => {
     let violations = 0;
@@ -267,42 +282,29 @@ export function StarkConsolidator() {
         </h2>
 
         <div className="p-6">
-          <div className="sm:flex sm:items-center sm:justify-between">
-            <div className="sm:flex sm:gap-4">
+          <div className="sm:flex sm:items-center sm:justify-between sm:gap-8">
+            <div className="sm:flex sm:items-start sm:gap-5">
               <div className="shrink-0">
-                <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-slate-900/5 text-slate-700 dark:bg-white/10 dark:text-slate-200 dark:outline dark:-outline-offset-1 dark:outline-white/10">
+                <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-slate-900/5 text-slate-700 dark:bg-white/10 dark:text-slate-200 dark:outline dark:-outline-offset-1 dark:outline-white/10 sm:size-14">
                   <DocumentTextIcon className="h-6 w-6" />
                 </div>
               </div>
 
-              <div className="mt-4 text-center sm:mt-0 sm:text-left">
-                <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+              <div className="mt-4 text-center sm:mt-0 sm:max-w-xl sm:text-left">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-300">
                   Upload Stark HTML report(s)
                 </p>
-                <h1 className="text-xl font-semibold tracking-tight">
+                <h1 className="mt-1 text-2xl font-semibold leading-tight tracking-tight text-slate-900 dark:text-slate-50">
                   WCAG Audit Pipeline
                 </h1>
-                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                  The app extracts issues, builds a consolidated issue list with
-                  severity labels, and generates remediation recommendations.
+                <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                  Extract issues, build a consolidated issue list with severity
+                  labels, and generate remediation recommendations.
                 </p>
               </div>
             </div>
 
             <div className="mt-5 flex flex-col items-center gap-2 sm:mt-0 sm:items-end">
-              <label className="group inline-flex cursor-pointer items-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 dark:border-white/20 dark:bg-slate-900/30 dark:text-slate-50 dark:hover:bg-slate-900/50">
-                <ArrowUpTrayIcon className="h-5 w-5 text-slate-500 group-hover:text-slate-700 dark:text-slate-300 dark:group-hover:text-slate-100" />
-                <span>Choose HTML report files…</span>
-                <input
-                  type="file"
-                  accept="text/html,.html"
-                  multiple
-                  onChange={(e) => void onFilesSelected(e.currentTarget.files)}
-                  disabled={busy}
-                  className="sr-only"
-                />
-              </label>
-
               <div className="flex flex-wrap justify-center gap-2 sm:justify-end">
                 <button
                   type="button"
@@ -328,54 +330,21 @@ export function StarkConsolidator() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 divide-y divide-slate-200 border-t border-slate-200 bg-slate-50/70 sm:grid-cols-3 sm:divide-x sm:divide-y-0 dark:divide-white/10 dark:border-white/10 dark:bg-white/5">
-          <div className="px-6 py-5 text-center text-sm font-medium">
-            <span className="text-slate-900 dark:text-white">
-              {parsedFiles.length}
-            </span>{" "}
-            <span className="text-slate-600 dark:text-slate-300">
-              Files parsed
-            </span>
-          </div>
-          <div className="px-6 py-5 text-center text-sm font-medium">
-            <span className="text-slate-900 dark:text-white">{issues.length}</span>{" "}
-            <span className="text-slate-600 dark:text-slate-300">
-              Unique issues
-            </span>
-          </div>
-          <div className="px-6 py-5 text-center text-sm font-medium">
-            <span className="text-slate-900 dark:text-white">{totalIssues}</span>{" "}
-            <span className="text-slate-600 dark:text-slate-300">
-              Total occurrences
-            </span>
-          </div>
-        </div>
-      </div>
+        <div className="grid grid-cols-1 gap-3 border-t border-slate-200 bg-slate-50/70 p-4 sm:grid-cols-3 sm:gap-4 dark:border-white/10 dark:bg-white/5">
+          <label className="group inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-white px-3 py-3 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/20 dark:bg-slate-900/30 dark:text-slate-50 dark:hover:bg-slate-900/50">
+            <ArrowUpTrayIcon className="h-5 w-5 text-slate-500 group-hover:text-slate-700 dark:text-slate-300 dark:group-hover:text-slate-100" />
+            <span>Choose report files</span>
+            <input
+              type="file"
+              accept="text/html,.html"
+              multiple
+              onChange={(e) => void onFilesSelected(e.currentTarget.files)}
+              disabled={busy}
+              className="sr-only"
+            />
+          </label>
 
-      <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200/70 bg-white/80 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/40">
-        <div className="grid grid-cols-1 divide-y divide-slate-200 border-slate-200 bg-slate-50/70 sm:grid-cols-5 sm:divide-x sm:divide-y-0 dark:divide-white/10 dark:border-white/10 dark:bg-white/5">
-          <div className="px-6 py-5 text-center text-sm font-medium">
-            <span className="text-slate-900 dark:text-white">
-              {parsedFiles.length}
-            </span>{" "}
-            <span className="text-slate-600 dark:text-slate-300">
-              Files parsed
-            </span>
-          </div>
-          <div className="px-6 py-5 text-center text-sm font-medium">
-            <span className="text-slate-900 dark:text-white">{issues.length}</span>{" "}
-            <span className="text-slate-600 dark:text-slate-300">
-              Unique issues
-            </span>
-          </div>
-          <div className="px-6 py-5 text-center text-sm font-medium">
-            <span className="text-slate-900 dark:text-white">{totalIssues}</span>{" "}
-            <span className="text-slate-600 dark:text-slate-300">
-              Total occurrences
-            </span>
-          </div>
-
-          <div className="px-6 py-5 text-center text-sm font-medium">
+          <div ref={digestActionsRef} className="relative">
             <button
               type="button"
               disabled={!canOpenDigest}
@@ -383,41 +352,49 @@ export function StarkConsolidator() {
               onClick={() =>
                 setExportActionsOpen((v) => (v === "digest" ? null : "digest"))
               }
-              className="w-full text-slate-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-white"
+              className="inline-flex w-full flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-50 dark:hover:bg-slate-900/50"
             >
-              Issues digest
+              <span>Issues digest</span>
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-300">
+                Preview or download
+              </span>
             </button>
-            {exportActionsOpen === "digest" && (
-              <div className="mt-3 flex items-center justify-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    openDigestPreview();
-                    setExportActionsOpen(null);
-                  }}
-                  className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white p-2 text-slate-800 shadow-sm hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-100 dark:hover:bg-slate-900/50"
-                  aria-label="Preview issues digest"
-                  title="Preview"
-                >
-                  <EyeIcon className="h-5 w-5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    downloadDigest();
-                    setExportActionsOpen(null);
-                  }}
-                  className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white p-2 text-slate-800 shadow-sm hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-100 dark:hover:bg-slate-900/50"
-                  aria-label="Download issues digest (HTML)"
-                  title="Download (HTML)"
-                >
-                  <ArrowDownTrayIcon className="h-5 w-5" />
-                </button>
+
+            {exportActionsOpen === "digest" && canOpenDigest && (
+              <div className="absolute inset-0 overflow-hidden rounded-xl border border-slate-200 bg-white/95 shadow-lg backdrop-blur dark:border-white/10 dark:bg-slate-950/80">
+                <div className="grid h-full grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      openDigestPreview();
+                      setExportActionsOpen(null);
+                    }}
+                    className="inline-flex h-full w-full items-center justify-center gap-2 text-sm font-semibold text-slate-900 hover:bg-slate-50 dark:text-slate-50 dark:hover:bg-white/10"
+                    aria-label="Preview issues digest"
+                    title="Preview"
+                  >
+                    <EyeIcon className="h-5 w-5" />
+                    <span className="sr-only">Preview</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      downloadDigest();
+                      setExportActionsOpen(null);
+                    }}
+                    className="inline-flex h-full w-full items-center justify-center gap-2 border-l border-slate-200 text-sm font-semibold text-slate-900 hover:bg-slate-50 dark:border-white/10 dark:text-slate-50 dark:hover:bg-white/10"
+                    aria-label="Download issues digest (HTML)"
+                    title="Download (HTML)"
+                  >
+                    <ArrowDownTrayIcon className="h-5 w-5" />
+                    <span className="sr-only">Download</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>
 
-          <div className="px-6 py-5 text-center text-sm font-medium">
+          <div ref={planActionsRef} className="relative">
             <button
               type="button"
               disabled={!canOpenPlan}
@@ -425,36 +402,44 @@ export function StarkConsolidator() {
               onClick={() =>
                 setExportActionsOpen((v) => (v === "plan" ? null : "plan"))
               }
-              className="w-full text-slate-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-white"
+              className="inline-flex w-full flex-col items-center justify-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-3 text-sm font-semibold text-slate-900 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-50 dark:hover:bg-slate-900/50"
             >
-              Remediation recommendations
+              <span>Remediation recommendations</span>
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-300">
+                Preview or download
+              </span>
             </button>
-            {exportActionsOpen === "plan" && (
-              <div className="mt-3 flex items-center justify-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    openPlanPreview();
-                    setExportActionsOpen(null);
-                  }}
-                  className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white p-2 text-slate-800 shadow-sm hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-100 dark:hover:bg-slate-900/50"
-                  aria-label="Preview remediation recommendations"
-                  title="Preview"
-                >
-                  <EyeIcon className="h-5 w-5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    downloadPlan();
-                    setExportActionsOpen(null);
-                  }}
-                  className="inline-flex items-center justify-center rounded-lg bg-slate-900 p-2 text-white shadow-sm hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
-                  aria-label="Download remediation recommendations (HTML)"
-                  title="Download (HTML)"
-                >
-                  <ArrowDownTrayIcon className="h-5 w-5" />
-                </button>
+
+            {exportActionsOpen === "plan" && canOpenPlan && (
+              <div className="absolute inset-0 overflow-hidden rounded-xl border border-slate-200 bg-white/95 shadow-lg backdrop-blur dark:border-white/10 dark:bg-slate-950/80">
+                <div className="grid h-full grid-cols-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      openPlanPreview();
+                      setExportActionsOpen(null);
+                    }}
+                    className="inline-flex h-full w-full items-center justify-center gap-2 text-sm font-semibold text-slate-900 hover:bg-slate-50 dark:text-slate-50 dark:hover:bg-white/10"
+                    aria-label="Preview remediation recommendations"
+                    title="Preview"
+                  >
+                    <EyeIcon className="h-5 w-5" />
+                    <span className="sr-only">Preview</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      downloadPlan();
+                      setExportActionsOpen(null);
+                    }}
+                    className="inline-flex h-full w-full items-center justify-center gap-2 border-l border-slate-200 text-sm font-semibold text-slate-900 hover:bg-slate-50 dark:border-white/10 dark:text-slate-50 dark:hover:bg-white/10"
+                    aria-label="Download remediation recommendations (HTML)"
+                    title="Download (HTML)"
+                  >
+                    <ArrowDownTrayIcon className="h-5 w-5" />
+                    <span className="sr-only">Download</span>
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -598,63 +583,84 @@ export function StarkConsolidator() {
         )}
 
         {issues.length > 0 && (
-          <div className="mt-6 overflow-x-auto rounded-2xl border border-slate-200 dark:border-white/10">
-            <table className="min-w-full divide-y divide-slate-200 text-sm dark:divide-white/10">
-              <thead>
-                <tr className="bg-slate-50 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:bg-white/5 dark:text-slate-300">
-                  <th scope="col" className="px-3 py-3 text-left">
-                    Severity
-                  </th>
-                  <th scope="col" className="px-3 py-3 text-left">
-                    Category
-                  </th>
-                  <th scope="col" className="px-3 py-3 text-left">
-                    Occurrences
-                  </th>
-                  <th scope="col" className="px-3 py-3 text-left">
-                    Title
-                  </th>
-                  <th scope="col" className="px-3 py-3 text-left">
-                    WCAG
-                  </th>
-                  <th scope="col" className="px-3 py-3 text-left">
-                    Pages
-                  </th>
-                  <th scope="col" className="px-3 py-3 text-left">
-                    Your est (hrs)
-                  </th>
-                  <th scope="col" className="px-3 py-3 text-left">
-                    Notes
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 bg-white dark:divide-white/10 dark:bg-transparent">
-                {issues.slice(0, 50).map((i, idx) => {
-                  const cat = categorizeIssue(i);
-                  const key = `${cat}|${computeIssueKey(i)}`;
-                  const your = overrides[key]?.hours;
-                  const notes = overrides[key]?.notes ?? "";
-                  return (
-                    <tr key={`${key}-${idx}`} className="align-top">
-                      <td className="px-3 py-3">
-                        {formatSeverityBadge(i.severity, severityScheme)}
-                      </td>
-                      <td className="px-3 py-3 text-slate-700 dark:text-slate-200">
-                        {cat}
-                      </td>
-                      <td className="px-3 py-3 text-slate-700 dark:text-slate-200">
-                        {i.occurrences}
-                      </td>
-                      <td className="px-3 py-3 font-medium text-slate-900 dark:text-slate-50">
-                        {i.title}
-                      </td>
-                      <td className="px-3 py-3 text-slate-700 dark:text-slate-200">
-                        {i.wcag ?? ""}
-                      </td>
-                      <td className="px-3 py-3 text-slate-700 dark:text-slate-200">
-                        {i.pages.length}
-                      </td>
-                      <td className="px-3 py-3">
+          <div className="mt-6">
+            <div className="grid gap-3">
+              {issues.slice(0, 50).map((i, idx) => {
+                const cat = categorizeIssue(i);
+                const key = `${cat}|${computeIssueKey(i)}`;
+                const your = overrides[key]?.hours;
+                const notes = overrides[key]?.notes ?? "";
+
+                return (
+                  <article
+                    key={`${key}-${idx}`}
+                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-950/40"
+                  >
+                    <header className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="mb-2 flex flex-wrap items-center gap-2">
+                          {formatSeverityBadge(i.severity, severityScheme)}
+                          <span className="inline-flex items-center rounded-full bg-slate-900/5 px-2 py-0.5 text-xs font-semibold text-slate-900 dark:bg-white/10 dark:text-slate-50">
+                            {i.occurrences}×
+                          </span>
+                          {i.wcag ? (
+                            <span className="inline-flex items-center rounded-full bg-slate-900/5 px-2 py-0.5 text-xs font-medium text-slate-900 dark:bg-white/10 dark:text-slate-50">
+                              WCAG {i.wcag}
+                            </span>
+                          ) : null}
+                          <span className="inline-flex items-center rounded-full bg-slate-900/5 px-2 py-0.5 text-xs font-medium text-slate-900 dark:bg-white/10 dark:text-slate-50">
+                            {cat}
+                          </span>
+                        </div>
+
+                        <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-50">
+                          {i.title}
+                        </h4>
+
+                        {i.description ? (
+                          <p className="mt-2 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
+                            {i.description}
+                          </p>
+                        ) : null}
+
+                        <div className="mt-2 text-xs text-slate-600 dark:text-slate-300">
+                          {i.pages.length} pages impacted
+                        </div>
+                      </div>
+                    </header>
+
+                    {i.pages.length > 0 && (
+                      <details className="mt-3">
+                        <summary className="cursor-pointer select-none text-sm text-slate-600 dark:text-slate-300">
+                          View pages
+                        </summary>
+                        <div className="mt-2 grid gap-2">
+                          {i.pages.slice(0, 12).map((p) => (
+                            <div
+                              key={p}
+                              className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs dark:border-white/10 dark:bg-white/5"
+                              style={{
+                                fontFamily:
+                                  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+                              }}
+                            >
+                              {p}
+                            </div>
+                          ))}
+                          {i.pages.length > 12 && (
+                            <div className="text-xs text-slate-500 dark:text-slate-400">
+                              +{i.pages.length - 12} more
+                            </div>
+                          )}
+                        </div>
+                      </details>
+                    )}
+
+                    <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <label className="grid gap-1">
+                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                          Your estimate (hrs)
+                        </span>
                         <input
                           type="number"
                           step={0.25}
@@ -667,26 +673,29 @@ export function StarkConsolidator() {
                             setEstimate(i, Number.isFinite(n) ? n : undefined);
                           }}
                           placeholder="e.g. 4"
-                          className="w-24 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 shadow-sm outline-none ring-0 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-50 dark:focus:ring-white/10"
+                          className="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 shadow-sm outline-none ring-0 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-50 dark:focus:ring-white/10"
                         />
-                      </td>
-                      <td className="px-3 py-3">
+                      </label>
+
+                      <label className="grid gap-1">
+                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                          Notes
+                        </span>
                         <input
                           type="text"
                           value={notes}
-                          onChange={(e) =>
-                            setEstimateNotes(i, e.currentTarget.value)
-                          }
+                          onChange={(e) => setEstimateNotes(i, e.currentTarget.value)}
                           placeholder="Optional"
-                          className="w-56 rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-sm text-slate-900 shadow-sm outline-none ring-0 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-50 dark:focus:ring-white/10"
+                          className="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 shadow-sm outline-none ring-0 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-50 dark:focus:ring-white/10"
                         />
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-            <p className="px-3 py-3 text-sm text-slate-600 dark:text-slate-300">
+                      </label>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+
+            <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
               Showing first 50 consolidated issues. Your estimates are saved
               locally and included in the remediation export.
             </p>

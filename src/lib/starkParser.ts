@@ -983,8 +983,9 @@ export function consolidatedIssuesToHtmlDigest(
     <div class="card header">
       <h2 class="sr-only">Report overview</h2>
       <p class="kicker">${escapeHtml(appName)}</p>
-      <h1>${escapeHtml(docTitle)}</h1>
-      <div class="sub">Consolidated issue list with severity labels • Generated ${escapeHtml(generatedLabel)} • ${totalUnique} unique issues • ${totalOccurrences} total occurrences</div>
+      <h1 class="big">${escapeHtml(docTitle)}</h1>
+      <p class="small">Consolidated issue list with severity labels.</p>
+      <div class="sub">Generated ${escapeHtml(generatedLabel)} • ${totalUnique} unique issues • ${totalOccurrences} total occurrences</div>
     </div>
 
     <h3 class="statsTitle">Totals</h3>

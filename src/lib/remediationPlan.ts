@@ -450,8 +450,9 @@ export function issuesToRemediationPlanHtml(
     <div class="card header">
       <h2 class="sr-only">Report overview</h2>
       <p class="kicker">${escapeHtml(appName)}</p>
-      <h1>${escapeHtml(docTitle)}</h1>
-      <div class="sub">Remediation recommendations based on consolidated issues • Generated ${escapeHtml(generatedLabel)} • ${grouped.length} issue groups • ${scoped.length} raw findings</div>
+      <h1 class="big">${escapeHtml(docTitle)}</h1>
+      <p class="small">Remediation recommendations based on consolidated issues.</p>
+      <div class="sub">Generated ${escapeHtml(generatedLabel)} • ${grouped.length} issue groups • ${scoped.length} raw findings</div>
     </div>
 
     <h3 class="statsTitle">Totals</h3>
