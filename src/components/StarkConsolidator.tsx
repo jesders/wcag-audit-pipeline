@@ -262,8 +262,9 @@ export function StarkConsolidator() {
               WCAG Audit Pipeline
             </h1>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Upload Stark HTML report(s). The app extracts issues and generates
-              remediation deliverables.
+              Upload Stark HTML report(s). The app extracts issues, builds a
+              consolidated issue list with severity labels, and generates
+              remediation recommendations.
             </p>
           </div>
         </div>
