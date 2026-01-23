@@ -351,6 +351,15 @@ export function issuesToRemediationPlanHtml(
     : issues;
   const grouped = groupIssues(scoped);
 
+  const severityCounts: Record<SeverityLabel, number> = {
+    Critical: 0,
+    Serious: 0,
+    Moderate: 0,
+    Minor: 0,
+    Unknown: 0,
+  };
+  for (const g of grouped) severityCounts[g.severity] += 1;
+
   const byCategory = new Map<IssueCategory, PlanIssueGroup[]>();
   for (const g of grouped) {
     const arr = byCategory.get(g.category) ?? [];
@@ -418,7 +427,7 @@ export function issuesToRemediationPlanHtml(
       ? `<details><summary>Notes</summary><div class="desc">${escapeHtml(override.notes)}</div></details>`
       : "";
     return `
-			<article class="issue">
+      <article class="issue" data-severity-item="${i.severity}">
 				<div class="issueTop">
 					<div>
 						<div class="badges">
@@ -437,6 +446,49 @@ export function issuesToRemediationPlanHtml(
 		`;
   };
 
+  const tabOrder: SeverityLabel[] = [
+    "Critical",
+    "Serious",
+    "Moderate",
+    "Minor",
+    "Unknown",
+  ];
+
+  const tabsHtml = `
+    <div class="tabsShell" data-severity-tabs>
+      <h3 class="tabsTitle">Issues</h3>
+      <div class="tabsTop">
+        <div class="tabsSelectWrap">
+          <select aria-label="Select a severity tab" class="tabsSelect">
+            <option value="All">All (${grouped.length})</option>
+            ${tabOrder
+              .map((s) => {
+                const count = severityCounts[s] ?? 0;
+                const disabled = count === 0;
+                return `<option value="${s}"${disabled ? " disabled" : ""}>${escapeHtml(sevLabel(s))} (${count})</option>`;
+              })
+              .join("")}
+          </select>
+          <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true" class="tabsChevron">
+            <path d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z" clip-rule="evenodd" fill-rule="evenodd" />
+          </svg>
+        </div>
+        <div class="tabsNavWrap">
+          <nav class="tabsNav" aria-label="Severity tabs">
+            <button type="button" class="tabBtn" data-tab="All" data-active="true">All <span class="tabCount">${grouped.length}</span></button>
+            ${tabOrder
+              .map((s) => {
+                const count = severityCounts[s] ?? 0;
+                const disabled = count === 0;
+                return `<button type="button" class="tabBtn" data-tab="${s}" data-active="false"${disabled ? " disabled" : ""}>${escapeHtml(sevLabel(s))} <span class="tabCount">${count}</span></button>`;
+              })
+              .join("")}
+          </nav>
+        </div>
+      </div>
+    </div>
+  `;
+
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -449,10 +501,20 @@ export function issuesToRemediationPlanHtml(
 	<div class="container">
     <div class="card header">
       <h2 class="sr-only">Report overview</h2>
-      <p class="kicker">${escapeHtml(appName)}</p>
-      <h1 class="big">${escapeHtml(docTitle)}</h1>
-      <p class="small">Remediation recommendations based on consolidated issues.</p>
-      <div class="sub">Generated ${escapeHtml(generatedLabel)} • ${grouped.length} issue groups • ${scoped.length} raw findings</div>
+      <div class="headerRow">
+        <div class="headerIconWrap">
+          <div class="headerIconBubble">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="headerIcon">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6M9 8h6m3 13.5H6A2.25 2.25 0 0 1 3.75 19.25V4.75A2.25 2.25 0 0 1 6 2.5h8.25L20.25 8.5v10.75A2.25 2.25 0 0 1 18 21.5Z" />
+            </svg>
+          </div>
+        </div>
+        <div class="headerText">
+          <p class="kicker">${escapeHtml(appName)}</p>
+          <h1 class="big">${escapeHtml(docTitle)}</h1>
+          <p class="small">Remediation recommendations with estimates and notes.</p>
+        </div>
+      </div>
     </div>
 
     <h3 class="statsTitle">Totals</h3>
@@ -527,11 +589,13 @@ export function issuesToRemediationPlanHtml(
 			</ul>
 		</div>
 
+    ${tabsHtml}
+
 		${categories
       .map((c) => {
         const reco = recommendationForCategory(c.category);
         return `
-					<section class="section">
+          <section class="section" data-category-section>
 						<div class="sectionHeader">
 							<h2>${escapeHtml(c.category)}</h2>
 							<div class="sub">${c.list.length} groups • ${c.occurrences} occurrences • Your est: ${c.estimatedCount > 0 ? toHours(c.estimatedHours) : "—"} (${c.estimatedCount}/${c.list.length})</div>
@@ -553,8 +617,41 @@ export function issuesToRemediationPlanHtml(
       })
       .join("")}
 
-		<div class="footer">Generated locally from Stark HTML exports. Estimates are directional and should be refined during remediation.</div>
+    <div class="footer">Generated ${escapeHtml(generatedLabel)} • ${grouped.length} issue groups • ${scoped.length} consolidated issues • Generated by WCAG Audit Pipeline (local, in-browser parsing). Estimates are directional and should be refined during remediation.</div>
 	</div>
+  <script>
+    (() => {
+      const root = document.querySelector('[data-severity-tabs]');
+      if (!root) return;
+      const select = root.querySelector('select');
+      const buttons = Array.from(root.querySelectorAll('[data-tab]'));
+      const items = Array.from(document.querySelectorAll('[data-severity-item]'));
+      const sections = Array.from(document.querySelectorAll('[data-category-section]'));
+
+      function setActive(tab) {
+        for (const b of buttons) b.dataset.active = String(b.dataset.tab === tab);
+        if (select) select.value = tab;
+
+        for (const el of items) {
+          const sev = el.getAttribute('data-severity-item');
+          el.hidden = tab !== 'All' && sev !== tab;
+        }
+
+        for (const sec of sections) {
+          const visible = Array.from(sec.querySelectorAll('[data-severity-item]')).some(
+            (n) => !(n).hidden,
+          );
+          sec.hidden = !visible;
+        }
+      }
+
+      for (const b of buttons) {
+        b.addEventListener('click', () => setActive(b.dataset.tab || 'All'));
+      }
+      if (select) select.addEventListener('change', () => setActive(select.value));
+      setActive('All');
+    })();
+  </script>
 </body>
 </html>`;
 }
