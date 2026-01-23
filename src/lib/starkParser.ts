@@ -190,6 +190,11 @@ function normalizeText(value: string | null | undefined): string {
   let t = (value ?? "").replace(/\s+/g, " ").trim();
   // Stark exports sometimes concatenate counters into labels; strip those artifacts
   // so they don't leak into WCAG/title/description fields.
+  // Examples seen in the wild: "010Passed", "10Passed", "0/10 Passed".
+  t = t.replace(/\d+\s*\/\s*\d+\s*passed\b/gi, "");
+  t = t.replace(/\d+\s*\/\s*\d+passed\b/gi, "");
+  t = t.replace(/\d+passed\d*/gi, "");
+  t = t.replace(/passed\d+/gi, "");
   t = t.replace(/\b\d+passed\d+\b/gi, "");
   t = t.replace(/\b\d+\s*passed\s*\d+\b/gi, "");
   t = t.replace(/\bpassed\s*\d+\b/gi, "");
@@ -560,8 +565,7 @@ function parseCategoriesCardIssues(
         : undefined) ?? parseOccurrences(description);
 
     if (!description) continue;
-    const title =
-      description.length > 90 ? `${description.slice(0, 87)}…` : description;
+    const title = description;
     const wcag = extractBestWcagLabelFromAncestors(el);
     const wantsInstances = isAltTextRelated(description);
 
@@ -952,7 +956,6 @@ export function consolidatedIssuesToHtmlDigest(
 					</div>
 					<h4>${escapeHtml(i.title)}</h4>
 				</header>
-				<p class="desc">${escapeHtml(i.description || "")}</p>
 				${sources}
 				${pagesDetails}
 				${examples}

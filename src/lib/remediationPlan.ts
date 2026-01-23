@@ -21,7 +21,9 @@ export type Estimate = {
 };
 
 export type EstimateOverride = {
-  /** If set, overrides the tool estimate for totals and display. */
+  /** User-entered estimate, e.g. "3" or "2-3" (hours). */
+  estimate?: string;
+  /** Legacy field from older versions; still accepted for backwards compatibility. */
   hours?: number;
   /** Optional notes to carry into the remediation document. */
   notes?: string;
@@ -40,6 +42,44 @@ function escapeHtml(value: string): string {
 
 function normalizeText(value: string | null | undefined): string {
   return (value ?? "").replace(/\s+/g, " ").trim();
+}
+
+type ParsedEstimateRange = { low: number; high: number };
+
+function normalizeEstimateInput(value: string): string {
+  return value
+    .replace(/[–—]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function parseEstimateRange(raw: string | undefined | null): ParsedEstimateRange | null {
+  const normalized = normalizeEstimateInput(raw ?? "");
+  if (!normalized) return null;
+
+  // Allow: "3", "2-3", "2.5 - 3", optionally with trailing "h"/"hours".
+  const match = normalized.match(
+    /^\s*(\d+(?:\.\d+)?)\s*(?:-\s*(\d+(?:\.\d+)?))?\s*(?:h(?:ours?)?)?\s*$/i,
+  );
+  if (!match) return null;
+
+  const a = Number.parseFloat(match[1] ?? "");
+  const b = match[2] ? Number.parseFloat(match[2]) : a;
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+  if (a < 0 || b < 0) return null;
+
+  return { low: Math.min(a, b), high: Math.max(a, b) };
+}
+
+function overrideToEstimateRange(
+  override: EstimateOverride | undefined,
+): ParsedEstimateRange | null {
+  const fromText = parseEstimateRange(override?.estimate);
+  if (fromText) return fromText;
+  if (typeof override?.hours === "number" && Number.isFinite(override.hours)) {
+    return { low: override.hours, high: override.hours };
+  }
+  return null;
 }
 
 function clamp(value: number, min: number, max: number): number {
@@ -148,8 +188,9 @@ function recommendationForCategory(category: IssueCategory): {
     case "Color contrast":
       return {
         summary:
-          "Adjust foreground/background colors to meet contrast ratios (4.5:1 normal text, 3:1 large text and UI components).",
+          "Adjust foreground/background colors to meet contrast ratios (4.5:1 normal text, 3:1 large text and UI components). New color values typically need to be provided by a client or designer and approved before implementation.",
         steps: [
+          "Coordinate with the client/designer to select compliant color values and get approval before implementing changes.",
           "Identify failing component(s) and the exact foreground/background pair used in the UI.",
           "Prefer fixing via shared tokens (CSS variables / theme tokens) so many pages improve at once.",
           "For text on images, add a scrim/overlay or change the image/placement to ensure readable contrast.",
@@ -370,28 +411,35 @@ export function issuesToRemediationPlanHtml(
   const categories = Array.from(byCategory.entries())
     .map(([category, list]) => {
       const occurrences = list.reduce((acc, i) => acc + i.occurrences, 0);
-      const estimatedHours = list.reduce((acc, i) => {
-        const o = overrides[i.key];
-        return (
-          acc +
-          (typeof o?.hours === "number" && Number.isFinite(o.hours)
-            ? o.hours
-            : 0)
-        );
+      const estimatedLowHours = list.reduce((acc, i) => {
+        const r = overrideToEstimateRange(overrides[i.key]);
+        return acc + (r ? r.low : 0);
+      }, 0);
+      const estimatedHighHours = list.reduce((acc, i) => {
+        const r = overrideToEstimateRange(overrides[i.key]);
+        return acc + (r ? r.high : 0);
       }, 0);
       const estimatedCount = list.reduce((acc, i) => {
-        const o = overrides[i.key];
-        return (
-          acc +
-          (typeof o?.hours === "number" && Number.isFinite(o.hours) ? 1 : 0)
-        );
+        const r = overrideToEstimateRange(overrides[i.key]);
+        return acc + (r ? 1 : 0);
       }, 0);
-      return { category, list, occurrences, estimatedHours, estimatedCount };
+      return {
+        category,
+        list,
+        occurrences,
+        estimatedLowHours,
+        estimatedHighHours,
+        estimatedCount,
+      };
     })
     .sort((a, b) => b.occurrences - a.occurrences);
 
-  const totalEstimatedHours = categories.reduce(
-    (acc, c) => acc + c.estimatedHours,
+  const totalEstimatedLowHours = categories.reduce(
+    (acc, c) => acc + c.estimatedLowHours,
+    0,
+  );
+  const totalEstimatedHighHours = categories.reduce(
+    (acc, c) => acc + c.estimatedHighHours,
     0,
   );
   const totalEstimatedCount = categories.reduce(
@@ -401,6 +449,11 @@ export function issuesToRemediationPlanHtml(
   const totalGroups = grouped.length;
   const unestimatedCount = Math.max(0, totalGroups - totalEstimatedCount);
   const toHours = (n: number) => `${Math.round(n * 10) / 10}h`;
+  const toHoursRange = (low: number, high: number) => {
+    const l = Math.round(low * 10) / 10;
+    const h = Math.round(high * 10) / 10;
+    return l === h ? `${l}h` : `${l}–${h}h`;
+  };
   const generatedLabel = generatedAt
     .toISOString()
     .replace("T", " ")
@@ -419,12 +472,12 @@ export function issuesToRemediationPlanHtml(
           .map((p) => `<li>${escapeHtml(p)}</li>`)
           .join("")}</ul></details>`
       : "";
-    const yourEst =
-      typeof override?.hours === "number" && Number.isFinite(override.hours)
-        ? `<span class="pill">Estimate: ${toHours(override.hours)}</span>`
-        : `<span class="pill pill-muted">Unestimated</span>`;
+    const r = overrideToEstimateRange(override);
+    const yourEst = r
+      ? `<span class="pill">Estimate: ${toHoursRange(r.low, r.high)}</span>`
+      : `<span class="pill pill-muted">Unestimated</span>`;
     const notes = override?.notes
-      ? `<details><summary>Notes</summary><div class="desc">${escapeHtml(override.notes)}</div></details>`
+      ? `<details><summary>Notes</summary><div class="desc noteText">${escapeHtml(override.notes)}</div></details>`
       : "";
     return `
       <article class="issue" data-severity-item="${i.severity}">
@@ -439,7 +492,6 @@ export function issuesToRemediationPlanHtml(
 						${meta ? `<div class="meta">${escapeHtml(meta)}</div>` : ""}
 					</div>
 				</div>
-				<div class="desc">${escapeHtml(i.description || "")}</div>
 				${pages}
 				${notes}
 			</article>
@@ -529,7 +581,11 @@ export function issuesToRemediationPlanHtml(
           <p class="statsLabel">Your estimate total</p>
         </dt>
         <dd class="statsValueRow">
-          <p class="statsValue">${totalEstimatedCount > 0 ? toHours(totalEstimatedHours) : "—"}</p>
+          <p class="statsValue">${
+            totalEstimatedCount > 0
+              ? toHoursRange(totalEstimatedLowHours, totalEstimatedHighHours)
+              : "—"
+          }</p>
           <div class="statsFooter"><div class="text-sm"><span class="statsFooterText">${totalEstimatedCount} of ${totalGroups} groups</span></div></div>
         </dd>
       </div>
@@ -598,7 +654,7 @@ export function issuesToRemediationPlanHtml(
           <section class="section" data-category-section>
 						<div class="sectionHeader">
 							<h2>${escapeHtml(c.category)}</h2>
-							<div class="sub">${c.list.length} groups • ${c.occurrences} occurrences • Your est: ${c.estimatedCount > 0 ? toHours(c.estimatedHours) : "—"} (${c.estimatedCount}/${c.list.length})</div>
+              <div class="sub">${c.list.length} groups • ${c.occurrences} occurrences • Your est: ${c.estimatedCount > 0 ? toHoursRange(c.estimatedLowHours, c.estimatedHighHours) : "—"} (${c.estimatedCount}/${c.list.length})</div>
 						</div>
 						<p class="kicker">${escapeHtml(reco.summary)}</p>
 						<details class="reco" open>

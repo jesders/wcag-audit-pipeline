@@ -236,6 +236,10 @@
     @apply mt-2 text-sm leading-relaxed text-slate-700 dark:text-slate-200;
   }
 
+  .noteText {
+    @apply whitespace-pre-wrap;
+  }
+
   .meta {
     @apply mt-1 text-xs text-slate-600 dark:text-slate-300;
   }

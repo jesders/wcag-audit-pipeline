@@ -88,7 +88,17 @@ export function StarkConsolidator() {
   const [overrides, setOverrides] = useState<EstimateOverrides>(() => {
     try {
       const raw = localStorage.getItem("stark-remediation-overrides-v1");
-      return raw ? (JSON.parse(raw) as EstimateOverrides) : {};
+      if (!raw) return {};
+      const parsed = JSON.parse(raw) as EstimateOverrides;
+      // Migrate legacy numeric overrides (hours) to the new text estimate format.
+      for (const k of Object.keys(parsed)) {
+        const v = parsed[k];
+        if (!v) continue;
+        if (!v.estimate && typeof v.hours === "number" && Number.isFinite(v.hours)) {
+          (v as unknown as { estimate?: string }).estimate = String(v.hours);
+        }
+      }
+      return parsed;
     } catch {
       return {};
     }
@@ -231,18 +241,18 @@ export function StarkConsolidator() {
     }
   }
 
-  function setEstimate(issue: ConsolidatedIssue, hours: number | undefined) {
+  function setEstimate(issue: ConsolidatedIssue, estimate: string | undefined) {
     const key = `${categorizeIssue(issue)}|${computeIssueKey(issue)}`;
     setOverrides((prev) => {
       const next = { ...prev };
-      if (hours === undefined) {
+      if (estimate === undefined) {
         if (!next[key]) return prev;
-        next[key] = { ...next[key], hours: undefined };
-        if (!next[key]?.notes && next[key]?.hours === undefined)
+        next[key] = { ...next[key], estimate: undefined, hours: undefined };
+        if (!next[key]?.notes && !next[key]?.estimate)
           delete next[key];
         return next;
       }
-      next[key] = { ...(next[key] ?? {}), hours };
+      next[key] = { ...(next[key] ?? {}), estimate, hours: undefined };
       return next;
     });
   }
@@ -251,7 +261,8 @@ export function StarkConsolidator() {
     const key = `${categorizeIssue(issue)}|${computeIssueKey(issue)}`;
     setOverrides((prev) => {
       const next = { ...prev };
-      const trimmed = notes.trim();
+      const normalized = notes.replace(/\r\n/g, "\n");
+      const trimmed = normalized.trim();
       if (!trimmed) {
         if (!next[key]) return prev;
         next[key] = { ...next[key], notes: undefined };
@@ -259,7 +270,7 @@ export function StarkConsolidator() {
           delete next[key];
         return next;
       }
-      next[key] = { ...(next[key] ?? {}), notes: trimmed };
+      next[key] = { ...(next[key] ?? {}), notes: normalized };
       return next;
     });
   }
@@ -709,7 +720,7 @@ export function StarkConsolidator() {
               {filteredIssues.slice(0, 50).map((i, idx) => {
                 const cat = categorizeIssue(i);
                 const key = `${cat}|${computeIssueKey(i)}`;
-                const your = overrides[key]?.hours;
+                const your = overrides[key]?.estimate ?? "";
                 const notes = overrides[key]?.notes ?? "";
 
                 return (
@@ -737,12 +748,6 @@ export function StarkConsolidator() {
                         <h4 className="text-sm font-semibold text-slate-900 dark:text-slate-50">
                           {i.title}
                         </h4>
-
-                        {i.description ? (
-                          <p className="mt-2 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
-                            {i.description}
-                          </p>
-                        ) : null}
 
                         <div className="mt-2 text-xs text-slate-600 dark:text-slate-300">
                           {i.pages.length} pages impacted
@@ -783,17 +788,15 @@ export function StarkConsolidator() {
                           Your estimate (hrs)
                         </span>
                         <input
-                          type="number"
-                          step={0.25}
-                          min={0}
-                          value={typeof your === "number" ? your : ""}
+                          type="text"
+                          inputMode="decimal"
+                          value={your}
                           onChange={(e) => {
                             const v = e.currentTarget.value;
-                            if (!v) return setEstimate(i, undefined);
-                            const n = Number.parseFloat(v);
-                            setEstimate(i, Number.isFinite(n) ? n : undefined);
+                            const trimmed = v.trim();
+                            setEstimate(i, trimmed ? trimmed : undefined);
                           }}
-                          placeholder="e.g. 4"
+                          placeholder="e.g. 3 or 2-3"
                           className="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 shadow-sm outline-none ring-0 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-50 dark:focus:ring-white/10"
                         />
                       </label>
@@ -802,12 +805,14 @@ export function StarkConsolidator() {
                         <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
                           Notes
                         </span>
-                        <input
-                          type="text"
+                        <textarea
+                          rows={2}
                           value={notes}
-                          onChange={(e) => setEstimateNotes(i, e.currentTarget.value)}
+                          onChange={(e) =>
+                            setEstimateNotes(i, e.currentTarget.value)
+                          }
                           placeholder="Optional"
-                          className="w-full rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 shadow-sm outline-none ring-0 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-50 dark:focus:ring-white/10"
+                          className="w-full resize-none rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm text-slate-900 shadow-sm outline-none ring-0 focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-white/10 dark:bg-slate-950/40 dark:text-slate-50 dark:focus:ring-white/10"
                         />
                       </label>
                     </div>
