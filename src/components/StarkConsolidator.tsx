@@ -259,11 +259,11 @@ export function StarkConsolidator() {
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <h1 className="text-xl font-semibold tracking-tight">
-              Stark Remediation Planner
+              WCAG Audit Pipeline
             </h1>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
               Upload Stark HTML report(s). The app extracts issues and generates
-              a remediation recommendations document.
+              remediation deliverables.
             </p>
           </div>
         </div>
