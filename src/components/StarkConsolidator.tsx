@@ -77,6 +77,9 @@ export function StarkConsolidator() {
   const [severityScheme, setSeverityScheme] =
     useState<SeverityScheme>("unknown");
   const [showDebug, setShowDebug] = useState(false);
+  const [exportActionsOpen, setExportActionsOpen] = useState<
+    "digest" | "plan" | null
+  >(null);
   const [overrides, setOverrides] = useState<EstimateOverrides>(() => {
     try {
       const raw = localStorage.getItem("stark-remediation-overrides-v1");
@@ -107,6 +110,9 @@ export function StarkConsolidator() {
       severityScheme,
     });
   }, [issues, severityScheme]);
+
+  const canOpenDigest = Boolean(digestHtml) && !busy;
+  const canOpenPlan = Boolean(planHtml) && !busy;
 
   const reportedTotals = useMemo(() => {
     let violations = 0;
@@ -346,76 +352,125 @@ export function StarkConsolidator() {
         </div>
       </div>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
-        <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/40">
-          <h2 className="text-base font-semibold tracking-tight text-slate-900 dark:text-slate-50">
-            Issues digest
-          </h2>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-            Consolidated issue list with severity labels.
-          </p>
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <button
-              type="button"
-              onClick={openDigestPreview}
-              disabled={!digestHtml || busy}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-100 dark:hover:bg-slate-900/50"
-            >
-              <EyeIcon className="h-5 w-5 text-slate-500 dark:text-slate-300" />
-              Preview
-            </button>
-            <button
-              type="button"
-              onClick={downloadDigest}
-              disabled={!digestHtml || busy}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-100 dark:hover:bg-slate-900/50"
-            >
-              <ArrowDownTrayIcon className="h-5 w-5 text-slate-500 dark:text-slate-300" />
-              Download (HTML)
-            </button>
+      <div className="mt-6 overflow-hidden rounded-2xl border border-slate-200/70 bg-white/80 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/40">
+        <div className="grid grid-cols-1 divide-y divide-slate-200 border-slate-200 bg-slate-50/70 sm:grid-cols-5 sm:divide-x sm:divide-y-0 dark:divide-white/10 dark:border-white/10 dark:bg-white/5">
+          <div className="px-6 py-5 text-center text-sm font-medium">
+            <span className="text-slate-900 dark:text-white">
+              {parsedFiles.length}
+            </span>{" "}
+            <span className="text-slate-600 dark:text-slate-300">
+              Files parsed
+            </span>
           </div>
-        </div>
+          <div className="px-6 py-5 text-center text-sm font-medium">
+            <span className="text-slate-900 dark:text-white">{issues.length}</span>{" "}
+            <span className="text-slate-600 dark:text-slate-300">
+              Unique issues
+            </span>
+          </div>
+          <div className="px-6 py-5 text-center text-sm font-medium">
+            <span className="text-slate-900 dark:text-white">{totalIssues}</span>{" "}
+            <span className="text-slate-600 dark:text-slate-300">
+              Total occurrences
+            </span>
+          </div>
 
-        <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-5 shadow-sm backdrop-blur dark:border-white/10 dark:bg-slate-900/40">
-          <h2 className="text-base font-semibold tracking-tight text-slate-900 dark:text-slate-50">
-            Remediation recommendations
-          </h2>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-            Export a prioritized plan, with optional time estimates.
-          </p>
-          <div className="mt-4 flex flex-wrap items-center gap-3">
+          <div className="px-6 py-5 text-center text-sm font-medium">
             <button
               type="button"
-              onClick={openPlanPreview}
-              disabled={!planHtml || busy}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-100 dark:hover:bg-slate-900/50"
+              disabled={!canOpenDigest}
+              aria-expanded={exportActionsOpen === "digest"}
+              onClick={() =>
+                setExportActionsOpen((v) => (v === "digest" ? null : "digest"))
+              }
+              className="w-full text-slate-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-white"
             >
-              <EyeIcon className="h-5 w-5 text-slate-500 dark:text-slate-300" />
-              Preview
+              Issues digest
             </button>
+            {exportActionsOpen === "digest" && (
+              <div className="mt-3 flex items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    openDigestPreview();
+                    setExportActionsOpen(null);
+                  }}
+                  className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white p-2 text-slate-800 shadow-sm hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-100 dark:hover:bg-slate-900/50"
+                  aria-label="Preview issues digest"
+                  title="Preview"
+                >
+                  <EyeIcon className="h-5 w-5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    downloadDigest();
+                    setExportActionsOpen(null);
+                  }}
+                  className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white p-2 text-slate-800 shadow-sm hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-100 dark:hover:bg-slate-900/50"
+                  aria-label="Download issues digest (HTML)"
+                  title="Download (HTML)"
+                >
+                  <ArrowDownTrayIcon className="h-5 w-5" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div className="px-6 py-5 text-center text-sm font-medium">
             <button
               type="button"
-              onClick={downloadPlan}
-              disabled={!planHtml || busy}
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+              disabled={!canOpenPlan}
+              aria-expanded={exportActionsOpen === "plan"}
+              onClick={() =>
+                setExportActionsOpen((v) => (v === "plan" ? null : "plan"))
+              }
+              className="w-full text-slate-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-white"
             >
-              <ArrowDownTrayIcon className="h-5 w-5" />
-              Download (HTML)
+              Remediation recommendations
             </button>
+            {exportActionsOpen === "plan" && (
+              <div className="mt-3 flex items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    openPlanPreview();
+                    setExportActionsOpen(null);
+                  }}
+                  className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white p-2 text-slate-800 shadow-sm hover:bg-slate-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-100 dark:hover:bg-slate-900/50"
+                  aria-label="Preview remediation recommendations"
+                  title="Preview"
+                >
+                  <EyeIcon className="h-5 w-5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    downloadPlan();
+                    setExportActionsOpen(null);
+                  }}
+                  className="inline-flex items-center justify-center rounded-lg bg-slate-900 p-2 text-white shadow-sm hover:bg-slate-800 dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100"
+                  aria-label="Download remediation recommendations (HTML)"
+                  title="Download (HTML)"
+                >
+                  <ArrowDownTrayIcon className="h-5 w-5" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-        {busy && (
-          <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
-            Parsing…
-          </p>
-        )}
-        {error && (
-          <p className="mt-3 text-sm font-medium text-red-700 dark:text-red-400">
-            {error}
-          </p>
-        )}
+      {busy && (
+        <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
+          Parsing…
+        </p>
+      )}
+      {error && (
+        <p className="mt-3 text-sm font-medium text-red-700 dark:text-red-400">
+          {error}
+        </p>
+      )}
 
         {issues.length > 0 && (
           <div className="mt-6">
