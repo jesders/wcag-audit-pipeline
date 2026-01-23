@@ -94,7 +94,7 @@ export function StarkConsolidator() {
   const planHtml = useMemo(() => {
     if (issues.length === 0) return null;
     return issuesToRemediationPlanHtml(issues, {
-      reportTitle: "Accessibility Remediation Recommendations",
+      reportTitle: "WCAG Audit Pipeline — Remediation Recommendations",
       overrides,
       severityScheme,
     });
@@ -103,7 +103,7 @@ export function StarkConsolidator() {
   const digestHtml = useMemo(() => {
     if (issues.length === 0) return null;
     return consolidatedIssuesToHtmlDigest(issues, {
-      reportTitle: "Accessibility Issues Digest",
+      reportTitle: "WCAG Audit Pipeline — Issues Digest",
       severityScheme,
     });
   }, [issues, severityScheme]);
@@ -222,7 +222,7 @@ export function StarkConsolidator() {
   function downloadPlan() {
     if (!planHtml) return;
     downloadTextFile(
-      `accessibility-remediation-plan-${new Date().toISOString().slice(0, 10)}.html`,
+      `wcag-audit-remediation-recommendations-${new Date().toISOString().slice(0, 10)}.html`,
       planHtml,
       "text/html;charset=utf-8",
     );
@@ -231,7 +231,7 @@ export function StarkConsolidator() {
   function downloadDigest() {
     if (!digestHtml) return;
     downloadTextFile(
-      `accessibility-issues-digest-${new Date().toISOString().slice(0, 10)}.html`,
+      `wcag-audit-issues-digest-${new Date().toISOString().slice(0, 10)}.html`,
       digestHtml,
       "text/html;charset=utf-8",
     );

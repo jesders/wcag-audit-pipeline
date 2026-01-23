@@ -876,7 +876,7 @@ export function consolidatedIssuesToHtmlDigest(
   issues: ConsolidatedIssue[],
   options: HtmlDigestOptions = {},
 ): string {
-  const title = options.reportTitle ?? "Accessibility Issues Digest";
+  const title = options.reportTitle ?? "WCAG Audit Pipeline — Issues Digest";
   const generatedAt = options.generatedAt ?? new Date();
   const filteredIssues = options.filterCategory
     ? issues.filter((i) => categorizeIssue(i) === options.filterCategory)
@@ -980,7 +980,7 @@ export function consolidatedIssuesToHtmlDigest(
 	<div class="container">
 		<div class="header">
 			<h1>${escapeHtml(title)}</h1>
-			<div class="sub">Generated ${escapeHtml(generatedLabel)} • ${totalUnique} unique issues • ${totalOccurrences} total occurrences</div>
+      <div class="sub">Generated ${escapeHtml(generatedLabel)} • Consolidated issue list with severity labels • ${totalUnique} unique issues • ${totalOccurrences} total occurrences</div>
 		</div>
 
     <h3 class="statsTitle">Totals</h3>

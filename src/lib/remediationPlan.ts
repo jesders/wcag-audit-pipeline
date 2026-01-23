@@ -338,7 +338,7 @@ export function issuesToRemediationPlanHtml(
   } = {},
 ): string {
   const title =
-    options.reportTitle ?? "Accessibility Remediation Recommendations";
+    options.reportTitle ?? "WCAG Audit Pipeline — Remediation Recommendations";
   const generatedAt = options.generatedAt ?? new Date();
   const scopeCategory = options.scopeCategory;
   const overrides = options.overrides ?? {};
@@ -447,7 +447,7 @@ export function issuesToRemediationPlanHtml(
 <body>
 	<div class="container">
 		<h1>${escapeHtml(title)}</h1>
-		<div class="sub">Generated ${escapeHtml(generatedLabel)} • ${grouped.length} issue groups • ${scoped.length} raw findings</div>
+    <div class="sub">Generated ${escapeHtml(generatedLabel)} • Remediation recommendations based on consolidated issues • ${grouped.length} issue groups • ${scoped.length} raw findings</div>
 
     <h3 class="statsTitle">Totals</h3>
     <dl class="statsGrid">
@@ -512,8 +512,8 @@ export function issuesToRemediationPlanHtml(
       </div>
     </dl>
 
-		<div class="reco">
-			<div class="title">How to use this</div>
+    <div class="reco">
+      <div class="title">How to use these recommendations</div>
 			<ul>
 				<li>Start with categories with the highest occurrences and highest severity.</li>
 				<li>Fix at the source (shared components, templates, theme tokens) to reduce many findings at once.</li>
