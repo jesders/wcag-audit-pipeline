@@ -313,11 +313,11 @@ type WcagCriterionTotals = {
   potentials: number;
 };
 
-function extractWcagBreakdownTotals(doc: Document): WcagCriterionTotals[] {
+function extractWcagBreakdownTotals(scope: Document | Element): WcagCriterionTotals[] {
   // Stark exports often show per-criterion counts even when details (cards) are collapsed.
   // Those counts are encoded as: svg[aria-label="Failures|Potentials"] + a numeric sibling.
   const svgs = Array.from(
-    doc.querySelectorAll(
+    scope.querySelectorAll(
       'svg[aria-label="Failures"], svg[aria-label="Potentials"]',
     ),
   );
@@ -357,6 +357,33 @@ function extractPrimaryPageUrl(doc: Document): string | undefined {
   const bodyText = normalizeText(doc.body?.textContent);
   const match = bodyText.match(/https?:\/\/[^\s)\]"']+/i);
   return match?.[0];
+}
+
+/**
+ * Detect per-page section containers in multi-page Stark exports.
+ * Each section is a container div whose header child contains a <p> with the page URL.
+ */
+function extractPageSections(
+  doc: Document,
+): Array<{ url: string; container: Element }> {
+  const sections: Array<{ url: string; container: Element }> = [];
+  const seen = new Set<Element>();
+  for (const p of Array.from(doc.querySelectorAll("p"))) {
+    const t = normalizeText(p.textContent);
+    if (!/^https?:\/\//i.test(t) || t.length >= 300) continue;
+    // Section container is the grandparent: <div container> → <div header> → <p>URL</p>
+    const container = p.parentElement?.parentElement;
+    if (
+      container &&
+      container !== doc.documentElement &&
+      container !== doc.body &&
+      !seen.has(container)
+    ) {
+      seen.add(container);
+      sections.push({ url: t, container });
+    }
+  }
+  return sections;
 }
 
 function parseTableIssues(
@@ -524,14 +551,51 @@ function extractBestWcagLabelFromAncestors(el: Element): string | undefined {
 function parseCategoriesCardIssues(
   doc: Document,
   sourceFile: string,
-  pageUrl?: string,
+  fallbackPageUrl?: string,
 ): ParsedIssue[] {
+  // Stark exports often embed results for many pages in a single HTML file.
+  // Each page section is wrapped in a container whose header <p> holds the URL:
+  //   <div class="… rounded-lg …">
+  //     <div class="…"><p>https://example.com/page</p></div>
+  //     <ol>[WCAG violation tree]</ol>
+  //   </div>
+  // Build a map from section-container elements → page URLs so we can attribute
+  // each violation to the correct page instead of lumping them all under one URL.
+  const sectionUrlMap = new Map<Element, string>();
+  for (const p of Array.from(doc.querySelectorAll("p"))) {
+    const t = normalizeText(p.textContent);
+    if (/^https?:\/\//i.test(t) && t.length < 300) {
+      // The section container is the grandparent of the URL <p>
+      // (<div container> → <div header> → <p>URL</p>)
+      const container = p.parentElement?.parentElement;
+      if (
+        container &&
+        container !== doc.documentElement &&
+        container !== doc.body
+      ) {
+        sectionUrlMap.set(container, t);
+      }
+    }
+  }
+
+  // Resolve the page URL for a violation element by walking up the DOM
+  // to find the nearest ancestor that is a known page-section container.
+  function resolvePageUrl(el: Element): string | undefined {
+    let node: Element | null = el;
+    while (node) {
+      if (sectionUrlMap.has(node)) return sectionUrlMap.get(node);
+      node = node.parentElement;
+    }
+    return fallbackPageUrl;
+  }
+
   // Stark "Categories" exports often encode issues as cards with aria-labels like:
   // "Violation. <message>. (2 instances)" or "Potential Violation. <message>. (3 instances)"
   const elements = Array.from(doc.querySelectorAll("[aria-label]"));
   const issues: ParsedIssue[] = [];
 
   for (const el of elements) {
+    const pageUrl = resolvePageUrl(el as Element);
     const aria = normalizeText(el.getAttribute("aria-label"));
     if (!aria) continue;
     if (!/^(potential\s+)?violation\b/i.test(aria)) continue;
@@ -695,35 +759,127 @@ export function parseStarkHtmlReport(
   if (issues.length === 0) {
     const categoryIssues = parseCategoriesCardIssues(doc, sourceFile, pageUrl);
 
+    // Detect per-page sections for multi-page exports.
+    const pageSections = extractPageSections(doc);
+    const isMultiPage = pageSections.length > 1;
+
     if (categoryIssues.length > 0 || wcagBreakdown.length > 0) {
       if (categoryIssues.length > 0) {
         debug.warnings.push(
           "No issue tables matched; parsed Categories-style issue cards.",
         );
       }
-      if (wcagBreakdown.length > 0) {
-        debug.warnings.push(
-          "WCAG breakdown counts detected; using them to ensure totals align even if sections are collapsed.",
-        );
-      }
 
       issues = categoryIssues;
 
       // Fill gaps: some exports only include detailed cards for expanded criteria.
-      if (wcagBreakdown.length > 0) {
+      if (isMultiPage) {
+        // Multi-page export: compute WCAG breakdowns per page section and
+        // create synthetic issues with the correct per-page URL.
+        debug.warnings.push(
+          `Detected ${pageSections.length} page sections; performing per-page WCAG gap-fill.`,
+        );
+
+        // Group existing category card issues by their resolved page URL
+        // so we can compare per-page against per-section breakdowns.
+        const issuesByPage = new Map<string, ParsedIssue[]>();
+        for (const issue of categoryIssues) {
+          const key = normalizeText(issue.page) || "";
+          const list = issuesByPage.get(key) ?? [];
+          list.push(issue);
+          issuesByPage.set(key, list);
+        }
+
+        const synth: ParsedIssue[] = [];
+        for (const { url, container } of pageSections) {
+          const sectionBreakdown = extractWcagBreakdownTotals(container);
+          const sectionIssues =
+            issuesByPage.get(normalizeText(url)) ?? [];
+
+          // Build coverage map for this page's violation cards.
+          const covered = new Map<
+            string,
+            { failures: number; potentials: number }
+          >();
+          for (const i of sectionIssues) {
+            const w = normalizeText(i.wcag);
+            if (!w) continue;
+            const existing = covered.get(w) ?? {
+              failures: 0,
+              potentials: 0,
+            };
+            if (i.severity === "Critical")
+              existing.failures += i.occurrences;
+            else if (i.severity === "Moderate")
+              existing.potentials += i.occurrences;
+            covered.set(w, existing);
+          }
+
+          for (const c of sectionBreakdown) {
+            const existing = covered.get(c.wcag) ?? {
+              failures: 0,
+              potentials: 0,
+            };
+            const missingFailures = Math.max(
+              0,
+              c.failures - existing.failures,
+            );
+            const missingPotentials = Math.max(
+              0,
+              c.potentials - existing.potentials,
+            );
+
+            if (missingFailures > 0) {
+              synth.push({
+                title: `WCAG ${c.wcag} — Violations (details not in export)`,
+                description:
+                  "Count taken from the WCAG breakdown in the Stark report. Detailed issue cards were not present in the HTML export (often because the section was collapsed).",
+                severity: "Critical",
+                occurrences: missingFailures,
+                wcag: c.wcag,
+                page: url,
+                sourceFile,
+              });
+            }
+            if (missingPotentials > 0) {
+              synth.push({
+                title: `WCAG ${c.wcag} — Potential violations (details not in export)`,
+                description:
+                  "Count taken from the WCAG breakdown in the Stark report. Detailed issue cards were not present in the HTML export (often because the section was collapsed).",
+                severity: "Moderate",
+                occurrences: missingPotentials,
+                wcag: c.wcag,
+                page: url,
+                sourceFile,
+              });
+            }
+          }
+        }
+
+        if (synth.length > 0) {
+          debug.warnings.push(
+            `Added ${synth.length} synthetic issue(s) across ${pageSections.length} page sections.`,
+          );
+          issues = issues.concat(synth);
+        }
+      } else if (wcagBreakdown.length > 0) {
+        // Single-page export: original gap-fill logic.
+        debug.warnings.push(
+          "WCAG breakdown counts detected; using them to ensure totals align even if sections are collapsed.",
+        );
+
         const covered = new Map<
           string,
           { failures: number; potentials: number }
         >();
         for (const i of categoryIssues) {
-          const wcag = normalizeText(i.wcag);
-          if (!wcag) continue;
-          const key = wcag;
-          const existing = covered.get(key) ?? { failures: 0, potentials: 0 };
+          const w = normalizeText(i.wcag);
+          if (!w) continue;
+          const existing = covered.get(w) ?? { failures: 0, potentials: 0 };
           if (i.severity === "Critical") existing.failures += i.occurrences;
           else if (i.severity === "Moderate")
             existing.potentials += i.occurrences;
-          covered.set(key, existing);
+          covered.set(w, existing);
         }
 
         const synth: ParsedIssue[] = [];
