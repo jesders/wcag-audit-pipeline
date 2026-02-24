@@ -27,6 +27,8 @@ export type EstimateOverride = {
   hours?: number;
   /** Optional notes to carry into the remediation document. */
   notes?: string;
+  /** Manual override for the auto-classified responsible party. */
+  responsibleParty?: "Code" | "Content" | "Design";
 };
 
 export type EstimateOverrides = Record<string, EstimateOverride>;

@@ -56,6 +56,40 @@ export type IssueCategory =
   | "Tables"
   | "Other";
 
+export type ResponsibleParty = "Code" | "Content" | "Design";
+
+/**
+ * Classify who is responsible for fixing an issue:
+ * - **Content**: things a content editor / client can fix (alt text, link text, headings, language, table markup in CMS)
+ * - **Design**: requires a design change (color contrast, touch targets, text spacing, focus indicator styling)
+ * - **Code**: requires a developer (ARIA, keyboard handling, form labels wired in code, semantic HTML structure)
+ */
+export function classifyResponsibleParty(
+  input: Pick<ConsolidatedIssue, "title" | "description" | "ruleId" | "wcag">,
+): ResponsibleParty {
+  const cat = categorizeIssue(input);
+  const hay = normalizeText(
+    `${input.ruleId ?? ""} ${input.wcag ?? ""} ${input.title} ${input.description}`,
+  ).toLowerCase();
+
+  // Content: things an editor can fix in the CMS / content layer
+  if (cat === "Alt text") return "Content";
+  if (cat === "Link text") return "Content";
+  if (cat === "Headings") return "Content";
+  if (cat === "Language") return "Content";
+  if (cat === "Tables") return "Content";
+
+  // Design: visual / layout issues that need design decisions
+  if (cat === "Color contrast") return "Design";
+  if (/touch\s*target|target\s*size|2\.5\.5|2\.5\.8/.test(hay)) return "Design";
+  if (/text\s*spacing|1\.4\.12/.test(hay)) return "Design";
+  if (/focus.*indicator|focus.*visible|2\.4\.7|2\.4\.11|2\.4\.12/.test(hay)) return "Design";
+  if (/reflow|1\.4\.10/.test(hay)) return "Design";
+
+  // Code: everything else (ARIA, keyboard, form labels, button names, etc.)
+  return "Code";
+}
+
 export type ConsolidatedIssue = {
   title: string;
   description: string;
