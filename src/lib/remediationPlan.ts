@@ -1,8 +1,10 @@
 import {
   categorizeIssue,
+  classifyResponsibleParty,
   formatSeverityLabel,
   type ConsolidatedIssue,
   type IssueCategory,
+  type ResponsibleParty,
   type SeverityLabel,
   type SeverityScheme,
 } from "./starkParser";
@@ -27,8 +29,8 @@ export type EstimateOverride = {
   hours?: number;
   /** Optional notes to carry into the remediation document. */
   notes?: string;
-  /** Manual override for the auto-classified responsible party. */
-  responsibleParty?: "Code" | "Content" | "Design";
+  /** User override for the auto-classified responsible party. */
+  responsibleParty?: ResponsibleParty;
 };
 
 export type EstimateOverrides = Record<string, EstimateOverride>;
@@ -378,6 +380,7 @@ export function issuesToRemediationPlanHtml(
     scopeCategory?: IssueCategory;
     overrides?: EstimateOverrides;
     severityScheme?: SeverityScheme;
+    ownerResolver?: (issue: ConsolidatedIssue) => ResponsibleParty;
   } = {},
 ): string {
   const appName = "WCAG Audit Pipeline";
@@ -388,6 +391,7 @@ export function issuesToRemediationPlanHtml(
   const overrides = options.overrides ?? {};
   const sevLabel = (s: SeverityLabel) =>
     formatSeverityLabel(s, options.severityScheme);
+  const resolveOwner = options.ownerResolver ?? classifyResponsibleParty;
 
   const scoped = scopeCategory
     ? issues.filter((i) => categorizeIssue(i) === scopeCategory)
@@ -402,6 +406,9 @@ export function issuesToRemediationPlanHtml(
     Unknown: 0,
   };
   for (const g of grouped) severityCounts[g.severity] += 1;
+
+  const ownerCounts: Record<ResponsibleParty, number> = { Code: 0, Content: 0, Design: 0 };
+  for (const g of grouped) ownerCounts[resolveOwner(g)] += 1;
 
   const byCategory = new Map<IssueCategory, PlanIssueGroup[]>();
   for (const g of grouped) {
@@ -463,6 +470,8 @@ export function issuesToRemediationPlanHtml(
 
   const issueRow = (i: PlanIssueGroup) => {
     const override = overrides[i.key];
+    const owner = resolveOwner(i);
+    const ownerClass = `owner owner-${owner.toLowerCase()}`;
     const meta = [
       i.wcag ? `WCAG ${i.wcag}` : "",
       i.ruleId ? `Rule ${i.ruleId}` : "",
@@ -482,12 +491,13 @@ export function issuesToRemediationPlanHtml(
       ? `<details><summary>Notes</summary><div class="desc noteText">${escapeHtml(override.notes)}</div></details>`
       : "";
     return `
-      <article class="issue" data-severity-item="${i.severity}">
+      <article class="issue" data-severity-item="${i.severity}" data-owner-item="${owner}">
 				<div class="issueTop">
 					<div>
 						<div class="badges">
 							<span class="sev sev-${i.severity.toLowerCase()}">${escapeHtml(sevLabel(i.severity))}</span>
 							<span class="pill">${i.occurrences}×</span>
+							<span class="${ownerClass}">${owner}</span>
 							${yourEst}
 						</div>
 						<div class="title">${escapeHtml(i.title)}</div>
@@ -538,6 +548,18 @@ export function issuesToRemediationPlanHtml(
               })
               .join("")}
           </nav>
+        </div>
+      </div>
+      <div class="ownerBar" data-owner-tabs>
+        <span class="ownerLabel">Owner</span>
+        <div class="ownerGroup" role="group" aria-label="Owner filter">
+          <button type="button" class="ownerBtn" data-owner-tab="All" data-active="true">All <span class="ownerCount">${grouped.length}</span></button>
+          ${(["Code", "Content", "Design"] as const).map((rp) => {
+            const count = ownerCounts[rp];
+            const disabled = count === 0;
+            const dot = `<span class="ownerDot ownerDot-${rp.toLowerCase()}"></span>`;
+            return `<button type="button" class="ownerBtn" data-owner-tab="${rp}" data-active="false"${disabled ? " disabled" : ""}>${dot}${rp} <span class="ownerCount">${count}</span></button>`;
+          }).join("")}
         </div>
       </div>
     </div>
@@ -685,14 +707,23 @@ export function issuesToRemediationPlanHtml(
       const buttons = Array.from(root.querySelectorAll('[data-tab]'));
       const items = Array.from(document.querySelectorAll('[data-severity-item]'));
       const sections = Array.from(document.querySelectorAll('[data-category-section]'));
+      const ownerRoot = document.querySelector('[data-owner-tabs]');
+      const ownerButtons = ownerRoot ? Array.from(ownerRoot.querySelectorAll('[data-owner-tab]')) : [];
 
-      function setActive(tab) {
-        for (const b of buttons) b.dataset.active = String(b.dataset.tab === tab);
-        if (select) select.value = tab;
+      let activeSeverity = 'All';
+      let activeOwner = 'All';
+
+      function applyFilters() {
+        for (const b of buttons) b.dataset.active = String(b.dataset.tab === activeSeverity);
+        if (select) select.value = activeSeverity;
+        for (const ob of ownerButtons) ob.dataset.active = String(ob.dataset.ownerTab === activeOwner);
 
         for (const el of items) {
           const sev = el.getAttribute('data-severity-item');
-          el.hidden = tab !== 'All' && sev !== tab;
+          const owner = el.getAttribute('data-owner-item');
+          const sevMatch = activeSeverity === 'All' || sev === activeSeverity;
+          const ownerMatch = activeOwner === 'All' || owner === activeOwner;
+          el.hidden = !sevMatch || !ownerMatch;
         }
 
         for (const sec of sections) {
@@ -704,10 +735,13 @@ export function issuesToRemediationPlanHtml(
       }
 
       for (const b of buttons) {
-        b.addEventListener('click', () => setActive(b.dataset.tab || 'All'));
+        b.addEventListener('click', () => { activeSeverity = b.dataset.tab || 'All'; applyFilters(); });
       }
-      if (select) select.addEventListener('change', () => setActive(select.value));
-      setActive('All');
+      if (select) select.addEventListener('change', () => { activeSeverity = select.value; applyFilters(); });
+      for (const ob of ownerButtons) {
+        ob.addEventListener('click', () => { activeOwner = ob.dataset.ownerTab || 'All'; applyFilters(); });
+      }
+      applyFilters();
     })();
   </script>
 </body>

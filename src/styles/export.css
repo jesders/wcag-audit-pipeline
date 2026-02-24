@@ -232,6 +232,81 @@
     @apply opacity-70;
   }
 
+  .owner {
+    @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold;
+  }
+
+  .owner-code {
+    @apply bg-sky-600/15 text-sky-800 dark:bg-sky-600/20 dark:text-sky-300;
+  }
+
+  .owner-content {
+    @apply bg-emerald-600/15 text-emerald-800 dark:bg-emerald-600/20 dark:text-emerald-300;
+  }
+
+  .owner-design {
+    @apply bg-fuchsia-600/15 text-fuchsia-800 dark:bg-fuchsia-600/20 dark:text-fuchsia-300;
+  }
+
+  .ownerBar {
+    @apply mt-2 flex items-center gap-3 rounded-lg bg-slate-50 px-3 py-2;
+    @apply dark:bg-white/[0.03];
+  }
+
+  .ownerBar .ownerLabel {
+    @apply text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500;
+  }
+
+  .ownerGroup {
+    @apply flex items-center gap-1;
+  }
+
+  .ownerBtn {
+    @apply inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer;
+    @apply text-slate-500 hover:bg-white/60 hover:text-slate-700;
+    @apply dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white;
+    border: none;
+    background: transparent;
+  }
+
+  .ownerBtn:disabled {
+    @apply cursor-not-allowed text-slate-300 dark:text-slate-600;
+  }
+
+  .ownerBtn:disabled:hover {
+    @apply text-slate-300 dark:text-slate-600;
+    background: transparent;
+  }
+
+  .ownerBtn[data-active="true"] {
+    @apply bg-white text-slate-900 shadow-sm ring-1 ring-slate-200;
+    @apply dark:bg-slate-700 dark:text-white dark:ring-white/10;
+  }
+
+  .ownerBtn .ownerDot {
+    @apply inline-block h-1.5 w-1.5 rounded-full;
+  }
+
+  .ownerBtn .ownerDot-code {
+    @apply bg-sky-500;
+  }
+
+  .ownerBtn .ownerDot-content {
+    @apply bg-emerald-500;
+  }
+
+  .ownerBtn .ownerDot-design {
+    @apply bg-fuchsia-500;
+  }
+
+  .ownerBtn .ownerCount {
+    @apply tabular-nums text-slate-400 dark:text-slate-500;
+  }
+
+  .ownerBtn[data-active="true"] .ownerCount {
+    @apply text-slate-500 dark:text-slate-400;
+  }
+
   .desc {
     @apply mt-2 text-sm leading-relaxed text-slate-700 dark:text-slate-200;
   }

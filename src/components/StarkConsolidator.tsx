@@ -189,43 +189,13 @@ export function StarkConsolidator() {
     if (severityCounts[severityTab] === 0) setSeverityTab("All");
   }, [severityCounts, severityTab]);
 
-  /** Get the effective responsible party for an issue, respecting manual overrides. */
-  function getEffectiveParty(issue: ConsolidatedIssue): ResponsibleParty {
-    const key = `${categorizeIssue(issue)}|${computeIssueKey(issue)}`;
-    return overrides[key]?.responsibleParty ?? classifyResponsibleParty(issue);
-  }
-
-  function setResponsiblePartyOverride(
-    issue: ConsolidatedIssue,
-    party: ResponsibleParty | undefined,
-  ) {
-    const key = `${categorizeIssue(issue)}|${computeIssueKey(issue)}`;
-    setOverrides((prev) => {
-      const next = { ...prev };
-      if (party === undefined) {
-        // Clear override (revert to auto)
-        if (!next[key]) return prev;
-        next[key] = { ...next[key], responsibleParty: undefined };
-        if (
-          !next[key]?.notes &&
-          !next[key]?.estimate &&
-          !next[key]?.responsibleParty
-        )
-          delete next[key];
-        return next;
-      }
-      next[key] = { ...(next[key] ?? {}), responsibleParty: party };
-      return next;
-    });
-  }
-
   const responsiblePartyCounts = useMemo(() => {
     const counts: Record<ResponsibleParty, number> = {
       Code: 0,
       Content: 0,
       Design: 0,
     };
-    for (const i of visibleIssues) counts[getEffectiveParty(i)] += 1;
+    for (const i of visibleIssues) counts[effectiveResponsibleParty(i)] += 1;
     return counts;
   }, [visibleIssues, overrides]);
 
@@ -241,7 +211,7 @@ export function StarkConsolidator() {
       result = result.filter((i) => i.severity === severityTab);
     if (responsiblePartyFilter !== "All")
       result = result.filter(
-        (i) => getEffectiveParty(i) === responsiblePartyFilter,
+        (i) => effectiveResponsibleParty(i) === responsiblePartyFilter,
       );
     return result;
   }, [visibleIssues, severityTab, responsiblePartyFilter, overrides]);
@@ -252,6 +222,7 @@ export function StarkConsolidator() {
       reportTitle: "Remediation Recommendations",
       overrides,
       severityScheme,
+      ownerResolver: effectiveResponsibleParty,
     });
   }, [visibleIssues, overrides, severityScheme]);
 
@@ -260,6 +231,7 @@ export function StarkConsolidator() {
     return consolidatedIssuesToHtmlDigest(visibleIssues, {
       reportTitle: "Issues Digest",
       severityScheme,
+      ownerResolver: effectiveResponsibleParty,
     });
   }, [visibleIssues, severityScheme]);
 
@@ -387,6 +359,33 @@ export function StarkConsolidator() {
 
   function restoreDismissedIssues() {
     setHiddenIssueKeys({});
+  }
+
+  function setResponsiblePartyOverride(
+    issue: ConsolidatedIssue,
+    party: ResponsibleParty | undefined,
+  ) {
+    const key = `${categorizeIssue(issue)}|${computeIssueKey(issue)}`;
+    setOverrides((prev) => {
+      const next = { ...prev };
+      if (party === undefined) {
+        if (!next[key]) return prev;
+        const { responsibleParty: _, ...rest } = next[key];
+        if (!rest.notes && !rest.estimate) {
+          delete next[key];
+        } else {
+          next[key] = rest;
+        }
+        return next;
+      }
+      next[key] = { ...(next[key] ?? {}), responsibleParty: party };
+      return next;
+    });
+  }
+
+  function effectiveResponsibleParty(issue: ConsolidatedIssue): ResponsibleParty {
+    const key = `${categorizeIssue(issue)}|${computeIssueKey(issue)}`;
+    return overrides[key]?.responsibleParty ?? classifyResponsibleParty(issue);
   }
 
   function setEstimateNotes(issue: ConsolidatedIssue, notes: string) {
@@ -787,43 +786,78 @@ export function StarkConsolidator() {
                   Issues
                 </h3>
                 <div className="mt-3 sm:mt-4">
-                  <div className="grid grid-cols-1 sm:hidden">
-                    <select
-                      aria-label="Select a severity tab"
-                      value={severityTab}
-                      onChange={(e) =>
-                        setSeverityTab(
-                          e.currentTarget.value as typeof severityTab,
-                        )
-                      }
-                      className="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-2 pr-8 pl-3 text-base text-slate-900 outline-1 -outline-offset-1 outline-slate-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-slate-900 dark:focus:outline-white"
-                    >
-                      <option value="All">
-                        All ({visibleIssues.length})
-                      </option>
-                      {(Object.keys(severityCounts) as Array<
-                        keyof typeof severityCounts
-                      >).map((s) => (
-                        <option key={s} value={s}>
-                          {formatSeverityLabel(s, severityScheme)} (
-                          {severityCounts[s]})
+                  {/* Mobile: stacked dropdowns */}
+                  <div className="grid gap-2 sm:hidden">
+                    <div className="grid grid-cols-1">
+                      <select
+                        aria-label="Select a severity tab"
+                        value={severityTab}
+                        onChange={(e) =>
+                          setSeverityTab(
+                            e.currentTarget.value as typeof severityTab,
+                          )
+                        }
+                        className="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-2 pr-8 pl-3 text-base text-slate-900 outline-1 -outline-offset-1 outline-slate-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-slate-900 dark:focus:outline-white"
+                      >
+                        <option value="All">
+                          All ({visibleIssues.length})
                         </option>
-                      ))}
-                    </select>
-                    <svg
-                      viewBox="0 0 16 16"
-                      fill="currentColor"
-                      aria-hidden="true"
-                      className="pointer-events-none col-start-1 row-start-1 mr-2 size-5 self-center justify-self-end fill-slate-500 dark:fill-slate-400"
-                    >
-                      <path
-                        d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z"
-                        clipRule="evenodd"
-                        fillRule="evenodd"
-                      />
-                    </svg>
+                        {(Object.keys(severityCounts) as Array<
+                          keyof typeof severityCounts
+                        >).map((s) => (
+                          <option key={s} value={s}>
+                            {formatSeverityLabel(s, severityScheme)} (
+                            {severityCounts[s]})
+                          </option>
+                        ))}
+                      </select>
+                      <svg
+                        viewBox="0 0 16 16"
+                        fill="currentColor"
+                        aria-hidden="true"
+                        className="pointer-events-none col-start-1 row-start-1 mr-2 size-5 self-center justify-self-end fill-slate-500 dark:fill-slate-400"
+                      >
+                        <path
+                          d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z"
+                          clipRule="evenodd"
+                          fillRule="evenodd"
+                        />
+                      </svg>
+                    </div>
+                    <div className="grid grid-cols-1">
+                      <select
+                        aria-label="Select an owner filter"
+                        value={responsiblePartyFilter}
+                        onChange={(e) =>
+                          setResponsiblePartyFilter(
+                            e.currentTarget.value as typeof responsiblePartyFilter,
+                          )
+                        }
+                        className="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-2 pr-8 pl-3 text-base text-slate-900 outline-1 -outline-offset-1 outline-slate-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-slate-900 dark:focus:outline-white"
+                      >
+                        <option value="All">All owners</option>
+                        {(["Code", "Content", "Design"] as const).map((rp) => (
+                          <option key={rp} value={rp}>
+                            {rp} ({responsiblePartyCounts[rp]})
+                          </option>
+                        ))}
+                      </select>
+                      <svg
+                        viewBox="0 0 16 16"
+                        fill="currentColor"
+                        aria-hidden="true"
+                        className="pointer-events-none col-start-1 row-start-1 mr-2 size-5 self-center justify-self-end fill-slate-500 dark:fill-slate-400"
+                      >
+                        <path
+                          d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z"
+                          clipRule="evenodd"
+                          fillRule="evenodd"
+                        />
+                      </svg>
+                    </div>
                   </div>
 
+                  {/* Desktop: severity tabs + filter bar */}
                   <div className="hidden sm:block">
                     <nav
                       className="flex flex-wrap border-b border-slate-200 dark:border-white/10"
@@ -857,10 +891,9 @@ export function StarkConsolidator() {
                             className={
                               disabled
                                 ? "-mb-px border-b-2 border-transparent px-3 py-3 text-sm font-medium whitespace-nowrap text-slate-300 dark:text-slate-500"
-                                :
-                              active
-                                ? "-mb-px border-b-2 border-indigo-500 px-3 py-3 text-sm font-medium whitespace-nowrap text-indigo-600 dark:border-indigo-400 dark:text-indigo-300"
-                                : "-mb-px border-b-2 border-transparent px-3 py-3 text-sm font-medium whitespace-nowrap text-slate-500 hover:border-slate-300 hover:text-slate-700 dark:text-slate-300 dark:hover:border-white/20 dark:hover:text-white"
+                                : active
+                                  ? "-mb-px border-b-2 border-indigo-500 px-3 py-3 text-sm font-medium whitespace-nowrap text-indigo-600 dark:border-indigo-400 dark:text-indigo-300"
+                                  : "-mb-px border-b-2 border-transparent px-3 py-3 text-sm font-medium whitespace-nowrap text-slate-500 hover:border-slate-300 hover:text-slate-700 dark:text-slate-300 dark:hover:border-white/20 dark:hover:text-white"
                             }
                           >
                             {label}
@@ -871,17 +904,13 @@ export function StarkConsolidator() {
                         );
                       })}
                     </nav>
-                  </div>
 
-                  <div className="mt-4">
-                    <h4 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                      Responsible party
-                    </h4>
-                    <div className="mt-2 hidden sm:block">
-                      <nav
-                        className="flex flex-wrap border-b border-slate-200 dark:border-white/10"
-                        aria-label="Responsible party tabs"
-                      >
+                    {/* Filter bar — owner */}
+                    <div className="mt-2 flex items-center gap-3 rounded-lg bg-slate-50 px-3 py-2 dark:bg-white/[0.03]">
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                        Owner
+                      </span>
+                      <div className="flex items-center gap-1" role="group" aria-label="Owner filter">
                         {(
                           ["All", "Code", "Content", "Design"] as const
                         ).map((rp) => {
@@ -891,81 +920,58 @@ export function StarkConsolidator() {
                               ? visibleIssues.length
                               : responsiblePartyCounts[rp];
                           const disabled = rp !== "All" && count === 0;
+
+                          const dotColor =
+                            rp === "Code"
+                              ? "bg-sky-500"
+                              : rp === "Content"
+                                ? "bg-emerald-500"
+                                : rp === "Design"
+                                  ? "bg-fuchsia-500"
+                                  : null;
+
                           return (
                             <button
                               key={rp}
                               type="button"
                               disabled={disabled}
                               onClick={() => setResponsiblePartyFilter(rp)}
-                              aria-current={active ? "page" : undefined}
-                              className={
+                              className={`inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
                                 disabled
-                                  ? "-mb-px border-b-2 border-transparent px-3 py-3 text-sm font-medium whitespace-nowrap text-slate-300 dark:text-slate-500"
+                                  ? "text-slate-300 dark:text-slate-600"
                                   : active
-                                    ? "-mb-px border-b-2 border-violet-500 px-3 py-3 text-sm font-medium whitespace-nowrap text-violet-600 dark:border-violet-400 dark:text-violet-300"
-                                    : "-mb-px border-b-2 border-transparent px-3 py-3 text-sm font-medium whitespace-nowrap text-slate-500 hover:border-slate-300 hover:text-slate-700 dark:text-slate-300 dark:hover:border-white/20 dark:hover:text-white"
-                              }
+                                    ? "bg-white text-slate-900 shadow-sm ring-1 ring-slate-200 dark:bg-slate-700 dark:text-white dark:ring-white/10"
+                                    : "text-slate-500 hover:bg-white/60 hover:text-slate-700 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white"
+                              }`}
                             >
+                              {dotColor && (
+                                <span className={`inline-block h-1.5 w-1.5 rounded-full ${dotColor}`} />
+                              )}
                               {rp}
-                              <span className="ml-2 text-xs font-semibold text-slate-400 dark:text-slate-400">
+                              <span className={`tabular-nums ${active ? "text-slate-500 dark:text-slate-400" : "text-slate-400 dark:text-slate-500"}`}>
                                 {count}
                               </span>
                             </button>
                           );
                         })}
-                      </nav>
-                    </div>
-                    <div className="grid grid-cols-1 sm:hidden">
-                      <select
-                        aria-label="Select a responsible party filter"
-                        value={responsiblePartyFilter}
-                        onChange={(e) =>
-                          setResponsiblePartyFilter(
-                            e.currentTarget.value as typeof responsiblePartyFilter,
-                          )
-                        }
-                        className="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-2 pr-8 pl-3 text-base text-slate-900 outline-1 -outline-offset-1 outline-slate-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-slate-900 dark:focus:outline-white"
-                      >
-                        <option value="All">
-                          All ({visibleIssues.length})
-                        </option>
-                        {(["Code", "Content", "Design"] as const).map((rp) => (
-                          <option key={rp} value={rp}>
-                            {rp} ({responsiblePartyCounts[rp]})
-                          </option>
-                        ))}
-                      </select>
-                      <svg
-                        viewBox="0 0 16 16"
-                        fill="currentColor"
-                        aria-hidden="true"
-                        className="pointer-events-none col-start-1 row-start-1 mr-2 size-5 self-center justify-self-end fill-slate-500 dark:fill-slate-400"
-                      >
-                        <path
-                          d="M4.22 6.22a.75.75 0 0 1 1.06 0L8 8.94l2.72-2.72a.75.75 0 1 1 1.06 1.06l-3.25 3.25a.75.75 0 0 1-1.06 0L4.22 7.28a.75.75 0 0 1 0-1.06Z"
-                          clipRule="evenodd"
-                          fillRule="evenodd"
-                        />
-                      </svg>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {filteredIssues.slice(0, 50).map((i, idx) => {
-                const cat = categorizeIssue(i);
-                const key = `${cat}|${computeIssueKey(i)}`;
-                const your = overrides[key]?.estimate ?? "";
-                const notes = overrides[key]?.notes ?? "";
-                const effectiveParty = getEffectiveParty(i);
-                const autoParty = classifyResponsibleParty(i);
-                const isOverridden = overrides[key]?.responsibleParty != null;
+              <div className="space-y-4">
+                  {filteredIssues.slice(0, 50).map((i, idx) => {
+                    const cat = categorizeIssue(i);
+                    const key = `${cat}|${computeIssueKey(i)}`;
+                    const your = overrides[key]?.estimate ?? "";
+                    const notes = overrides[key]?.notes ?? "";
 
-                return (
-                  <article
-                    key={`${key}-${idx}`}
-                    className="relative rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900"
-                  >
+                    return (
+                      <article
+                        key={`${key}-${idx}`}
+                        className="relative rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-slate-900"
+                      >
                     <header className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
@@ -979,7 +985,7 @@ export function StarkConsolidator() {
                             {cat}
                           </span>
                           {(() => {
-                            const rp = effectiveParty;
+                            const rp = effectiveResponsibleParty(i);
                             const rpColor =
                               rp === "Code"
                                 ? "bg-sky-600/15 text-sky-800 dark:bg-sky-600/20 dark:text-sky-300"
@@ -990,7 +996,7 @@ export function StarkConsolidator() {
                               <span
                                 className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${rpColor}`}
                               >
-                                {rp}{isOverridden ? " ✎" : ""}
+                                {rp}
                               </span>
                             );
                           })()}
@@ -1052,29 +1058,22 @@ export function StarkConsolidator() {
                       <div className="grid gap-3">
                         <label className="grid gap-1">
                           <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-                            Responsible party
+                            Owner
                           </span>
                           <select
-                            value={isOverridden ? effectiveParty : ""}
+                            value={effectiveResponsibleParty(i)}
                             onChange={(e) => {
-                              const v = e.currentTarget.value;
-                              if (!v) {
-                                setResponsiblePartyOverride(i, undefined);
-                              } else {
-                                setResponsiblePartyOverride(
-                                  i,
-                                  v as ResponsibleParty,
-                                );
-                              }
+                              const val = e.currentTarget.value as ResponsibleParty;
+                              const auto = classifyResponsibleParty(i);
+                              setResponsiblePartyOverride(i, val === auto ? undefined : val);
                             }}
                             className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-white/10 dark:bg-slate-800 dark:text-white"
                           >
-                            <option value="">
-                              Auto ({autoParty})
-                            </option>
-                            <option value="Code">Code</option>
-                            <option value="Content">Content</option>
-                            <option value="Design">Design</option>
+                            {(["Code", "Content", "Design"] as const).map((rp) => (
+                              <option key={rp} value={rp}>
+                                {rp}{rp === classifyResponsibleParty(i) ? " (auto)" : ""}
+                              </option>
+                            ))}
                           </select>
                         </label>
 
@@ -1115,6 +1114,7 @@ export function StarkConsolidator() {
                   </article>
                 );
               })}
+              </div>
             </div>
 
             <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">

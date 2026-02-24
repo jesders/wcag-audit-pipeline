@@ -1064,6 +1064,7 @@ export type HtmlDigestOptions = {
   generatedAt?: Date;
   filterCategory?: IssueCategory;
   severityScheme?: SeverityScheme;
+  ownerResolver?: (issue: ConsolidatedIssue) => ResponsibleParty;
 };
 
 export function consolidatedIssuesToHtmlDigest(
@@ -1077,6 +1078,11 @@ export function consolidatedIssuesToHtmlDigest(
   const filteredIssues = options.filterCategory
     ? issues.filter((i) => categorizeIssue(i) === options.filterCategory)
     : issues;
+
+  const resolveOwner = options.ownerResolver ?? classifyResponsibleParty;
+
+  const ownerCounts: Record<ResponsibleParty, number> = { Code: 0, Content: 0, Design: 0 };
+  for (const issue of filteredIssues) ownerCounts[resolveOwner(issue)] += 1;
 
   const totalsBySeverity: Record<SeverityLabel, number> = {
     Critical: 0,
@@ -1114,6 +1120,8 @@ export function consolidatedIssuesToHtmlDigest(
     formatSeverityLabel(s, options.severityScheme);
 
   const issueCard = (i: ConsolidatedIssue) => {
+    const owner = resolveOwner(i);
+    const ownerClass = `owner owner-${owner.toLowerCase()}`;
     const pagesDetails = i.pages.length
       ? `<details class="sources"><summary>Source pages (${i.pages.length})</summary><div class="sourceList">${i.pages
           .map((p) => `<div class="source">${escapeHtml(p)}</div>`)
@@ -1137,11 +1145,12 @@ export function consolidatedIssuesToHtmlDigest(
       : "";
 
     return `
-			<article class="issue">
+			<article class="issue" data-owner-item="${owner}">
 				<header class="issueHeader">
 					<div class="badges">
 						<span class="${severityClass[i.severity]}">${escapeHtml(sevLabel(i.severity))}</span>
 						<span class="occ">${i.occurrences}×</span>
+						<span class="${ownerClass}">${owner}</span>
 						${wcag}${rule}
 					</div>
 					<h4>${escapeHtml(i.title)}</h4>
@@ -1203,6 +1212,18 @@ export function consolidatedIssuesToHtmlDigest(
               })
               .join("")}
           </nav>
+        </div>
+      </div>
+      <div class="ownerBar" data-owner-tabs>
+        <span class="ownerLabel">Owner</span>
+        <div class="ownerGroup" role="group" aria-label="Owner filter">
+          <button type="button" class="ownerBtn" data-owner-tab="All" data-active="true">All <span class="ownerCount">${filteredIssues.length}</span></button>
+          ${(["Code", "Content", "Design"] as const).map((rp) => {
+            const count = ownerCounts[rp];
+            const disabled = count === 0;
+            const dot = `<span class="ownerDot ownerDot-${rp.toLowerCase()}"></span>`;
+            return `<button type="button" class="ownerBtn" data-owner-tab="${rp}" data-active="false"${disabled ? " disabled" : ""}>${dot}${rp} <span class="ownerCount">${count}</span></button>`;
+          }).join("")}
         </div>
       </div>
     </div>
@@ -1363,7 +1384,7 @@ export function consolidatedIssuesToHtmlDigest(
 						${categories
               .map((c) => {
                 return `
-									<div class="group">
+									<div class="group" data-category-group>
 										<div class="groupHeader">
 											<div class="name">${escapeHtml(c.category)}</div>
 											<div class="meta">${c.issues.length} issues • ${c.occurrences} occurrences</div>
@@ -1387,21 +1408,46 @@ export function consolidatedIssuesToHtmlDigest(
       const select = root.querySelector('select');
       const buttons = Array.from(root.querySelectorAll('[data-tab]'));
       const panels = Array.from(document.querySelectorAll('[data-severity-panel]'));
+      const ownerRoot = document.querySelector('[data-owner-tabs]');
+      const ownerButtons = ownerRoot ? Array.from(ownerRoot.querySelectorAll('[data-owner-tab]')) : [];
+      const ownerItems = Array.from(document.querySelectorAll('[data-owner-item]'));
 
-      function setActive(tab) {
-        for (const b of buttons) b.dataset.active = String(b.dataset.tab === tab);
-        if (select) select.value = tab;
+      let activeSeverity = 'All';
+      let activeOwner = 'All';
+
+      function applyFilters() {
+        for (const b of buttons) b.dataset.active = String(b.dataset.tab === activeSeverity);
+        if (select) select.value = activeSeverity;
+        for (const ob of ownerButtons) ob.dataset.active = String(ob.dataset.ownerTab === activeOwner);
+
         for (const p of panels) {
           const sev = p.getAttribute('data-severity-panel');
-          p.hidden = tab !== 'All' && sev !== tab;
+          const sevVisible = activeSeverity === 'All' || sev === activeSeverity;
+          // Hide individual issues that don't match the owner filter
+          const items = Array.from(p.querySelectorAll('[data-owner-item]'));
+          for (const el of items) {
+            const ownerVal = el.getAttribute('data-owner-item');
+            el.hidden = activeOwner !== 'All' && ownerVal !== activeOwner;
+          }
+          // Hide category groups where all issues are hidden
+          const groups = Array.from(p.querySelectorAll('[data-category-group]'));
+          for (const g of groups) {
+            const groupItems = Array.from(g.querySelectorAll('[data-owner-item]'));
+            g.hidden = groupItems.length > 0 && groupItems.every(el => el.hidden);
+          }
+          const hasVisibleItems = items.some(el => !el.hidden);
+          p.hidden = !sevVisible || !hasVisibleItems;
         }
       }
 
       for (const b of buttons) {
-        b.addEventListener('click', () => setActive(b.dataset.tab || 'All'));
+        b.addEventListener('click', () => { activeSeverity = b.dataset.tab || 'All'; applyFilters(); });
       }
-      if (select) select.addEventListener('change', () => setActive(select.value));
-      setActive('All');
+      if (select) select.addEventListener('change', () => { activeSeverity = select.value; applyFilters(); });
+      for (const ob of ownerButtons) {
+        ob.addEventListener('click', () => { activeOwner = ob.dataset.ownerTab || 'All'; applyFilters(); });
+      }
+      applyFilters();
     })();
   </script>
 </body>
