@@ -24,7 +24,9 @@ import {
 } from "../lib/starkParser";
 
 import {
+  computeEstimateTotals,
   computeIssueKey,
+  estimateForConsolidatedIssue,
   issuesToRemediationPlanHtml,
   type EstimateOverrides,
 } from "../lib/remediationPlan";
@@ -189,15 +191,20 @@ export function StarkConsolidator() {
     if (severityCounts[severityTab] === 0) setSeverityTab("All");
   }, [severityCounts, severityTab]);
 
+  const severityFilteredIssues = useMemo(() => {
+    if (severityTab === "All") return visibleIssues;
+    return visibleIssues.filter((i) => i.severity === severityTab);
+  }, [visibleIssues, severityTab]);
+
   const responsiblePartyCounts = useMemo(() => {
     const counts: Record<ResponsibleParty, number> = {
       Code: 0,
       Content: 0,
       Design: 0,
     };
-    for (const i of visibleIssues) counts[effectiveResponsibleParty(i)] += 1;
+    for (const i of severityFilteredIssues) counts[effectiveResponsibleParty(i)] += 1;
     return counts;
-  }, [visibleIssues, overrides]);
+  }, [severityFilteredIssues, overrides]);
 
   useEffect(() => {
     if (responsiblePartyFilter === "All") return;
@@ -206,15 +213,19 @@ export function StarkConsolidator() {
   }, [responsiblePartyCounts, responsiblePartyFilter]);
 
   const filteredIssues = useMemo(() => {
-    let result = visibleIssues;
-    if (severityTab !== "All")
-      result = result.filter((i) => i.severity === severityTab);
+    let result = severityFilteredIssues;
     if (responsiblePartyFilter !== "All")
       result = result.filter(
         (i) => effectiveResponsibleParty(i) === responsiblePartyFilter,
       );
     return result;
-  }, [visibleIssues, severityTab, responsiblePartyFilter, overrides]);
+  }, [severityFilteredIssues, responsiblePartyFilter, overrides]);
+
+  const formatHoursRange = (low: number, high: number) => {
+    const l = Math.round(low * 10) / 10;
+    const h = Math.round(high * 10) / 10;
+    return l === h ? `${l}h` : `${l}–${h}h`;
+  };
 
   const planHtml = useMemo(() => {
     if (visibleIssues.length === 0) return null;
@@ -226,14 +237,38 @@ export function StarkConsolidator() {
     });
   }, [visibleIssues, overrides, severityScheme]);
 
+  const allEstimateTotals = useMemo(() => {
+    if (visibleIssues.length === 0) return null;
+    return computeEstimateTotals(visibleIssues, overrides);
+  }, [visibleIssues, overrides]);
+
   const digestHtml = useMemo(() => {
     if (visibleIssues.length === 0) return null;
     return consolidatedIssuesToHtmlDigest(visibleIssues, {
       reportTitle: "Issues Digest",
       severityScheme,
       ownerResolver: effectiveResponsibleParty,
+      estimatedTimeLabel: allEstimateTotals
+        ? formatHoursRange(allEstimateTotals.lowHours, allEstimateTotals.highHours)
+        : undefined,
+      estimateResolver: (issue) => {
+        const key = `${categorizeIssue(issue)}|${computeIssueKey(issue)}`;
+        const raw = overrides[key]?.estimate;
+        if (raw) {
+          const match = raw.replace(/[\u2013\u2014]/g, '-').trim().match(
+            /^\s*(\d+(?:\.\d+)?)\s*(?:-\s*(\d+(?:\.\d+)?))?\s*(?:h(?:ours?)?)?\s*$/i,
+          );
+          if (match) {
+            const a = parseFloat(match[1]);
+            const b = match[2] ? parseFloat(match[2]) : a;
+            return { low: Math.min(a, b), high: Math.max(a, b) };
+          }
+        }
+        const auto = estimateForConsolidatedIssue(issue);
+        return { low: auto.lowHours, high: auto.highHours };
+      },
     });
-  }, [visibleIssues, severityScheme]);
+  }, [visibleIssues, severityScheme, allEstimateTotals, overrides]);
 
   const canOpenDigest = Boolean(digestHtml) && !busy;
   const canOpenPlan = Boolean(planHtml) && !busy;
@@ -835,7 +870,7 @@ export function StarkConsolidator() {
                         }
                         className="col-start-1 row-start-1 w-full appearance-none rounded-md bg-white py-2 pr-8 pl-3 text-base text-slate-900 outline-1 -outline-offset-1 outline-slate-300 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-600 dark:bg-white/5 dark:text-white dark:outline-white/10 dark:*:bg-slate-900 dark:focus:outline-white"
                       >
-                        <option value="All">All owners</option>
+                        <option value="All">All owners ({severityFilteredIssues.length})</option>
                         {(["Code", "Content", "Design"] as const).map((rp) => (
                           <option key={rp} value={rp}>
                             {rp} ({responsiblePartyCounts[rp]})
@@ -917,7 +952,7 @@ export function StarkConsolidator() {
                           const active = responsiblePartyFilter === rp;
                           const count =
                             rp === "All"
-                              ? visibleIssues.length
+                              ? severityFilteredIssues.length
                               : responsiblePartyCounts[rp];
                           const disabled = rp !== "All" && count === 0;
 

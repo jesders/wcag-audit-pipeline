@@ -183,6 +183,41 @@ export function estimateForConsolidatedIssue(
   return estimateForCategory(category, issue.occurrences, issue.severity);
 }
 
+/**
+ * Compute aggregate estimate totals for a list of issues.
+ * Uses user overrides when available, otherwise falls back to auto-estimates.
+ */
+export function computeEstimateTotals(
+  issues: ConsolidatedIssue[],
+  overrides: EstimateOverrides,
+): {
+  lowHours: number;
+  highHours: number;
+  overriddenCount: number;
+  totalCount: number;
+} {
+  let lowHours = 0;
+  let highHours = 0;
+  let overriddenCount = 0;
+
+  for (const issue of issues) {
+    const key = `${categorizeIssue(issue)}|${computeIssueKey(issue)}`;
+    const userRange = overrideToEstimateRange(overrides[key]);
+
+    if (userRange) {
+      lowHours += userRange.low;
+      highHours += userRange.high;
+      overriddenCount += 1;
+    } else {
+      const auto = estimateForConsolidatedIssue(issue);
+      lowHours += auto.lowHours;
+      highHours += auto.highHours;
+    }
+  }
+
+  return { lowHours, highHours, overriddenCount, totalCount: issues.length };
+}
+
 function recommendationForCategory(category: IssueCategory): {
   summary: string;
   steps: string[];
@@ -422,11 +457,15 @@ export function issuesToRemediationPlanHtml(
       const occurrences = list.reduce((acc, i) => acc + i.occurrences, 0);
       const estimatedLowHours = list.reduce((acc, i) => {
         const r = overrideToEstimateRange(overrides[i.key]);
-        return acc + (r ? r.low : 0);
+        if (r) return acc + r.low;
+        const auto = estimateForConsolidatedIssue(i);
+        return acc + auto.lowHours;
       }, 0);
       const estimatedHighHours = list.reduce((acc, i) => {
         const r = overrideToEstimateRange(overrides[i.key]);
-        return acc + (r ? r.high : 0);
+        if (r) return acc + r.high;
+        const auto = estimateForConsolidatedIssue(i);
+        return acc + auto.highHours;
       }, 0);
       const estimatedCount = list.reduce((acc, i) => {
         const r = overrideToEstimateRange(overrides[i.key]);
@@ -484,14 +523,17 @@ export function issuesToRemediationPlanHtml(
           .join("")}</ul></details>`
       : "";
     const r = overrideToEstimateRange(override);
+    const auto = estimateForConsolidatedIssue(i);
+    const estLow = r ? r.low : auto.lowHours;
+    const estHigh = r ? r.high : auto.highHours;
     const yourEst = r
-      ? `<span class="pill">Estimate: ${toHoursRange(r.low, r.high)}</span>`
-      : `<span class="pill pill-muted">Unestimated</span>`;
+      ? `<span class="pill">Estimate: ${toHoursRange(estLow, estHigh)}</span>`
+      : `<span class="pill pill-muted">Est: ${toHoursRange(estLow, estHigh)} (auto)</span>`;
     const notes = override?.notes
       ? `<details><summary>Notes</summary><div class="desc noteText">${escapeHtml(override.notes)}</div></details>`
       : "";
     return `
-      <article class="issue" data-severity-item="${i.severity}" data-owner-item="${owner}">
+      <article class="issue" data-severity-item="${i.severity}" data-owner-item="${owner}" data-est-low="${estLow}" data-est-high="${estHigh}" data-est-custom="${r ? '1' : '0'}">
 				<div class="issueTop">
 					<div>
 						<div class="badges">
@@ -595,22 +637,20 @@ export function issuesToRemediationPlanHtml(
 
     <h3 class="statsTitle">Totals</h3>
     <dl class="statsGrid">
-      <div class="statsCard">
+      <div class="statsCard" data-stats-estimate>
         <dt>
           <div class="statsIconWrap">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="statsIcon">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z" />
             </svg>
           </div>
-          <p class="statsLabel">Your estimate total</p>
+          <p class="statsLabel">Estimated time</p>
         </dt>
         <dd class="statsValueRow">
-          <p class="statsValue">${
-            totalEstimatedCount > 0
-              ? toHoursRange(totalEstimatedLowHours, totalEstimatedHighHours)
-              : "—"
+          <p class="statsValue" data-est-total-value>${
+            toHoursRange(totalEstimatedLowHours, totalEstimatedHighHours)
           }</p>
-          <div class="statsFooter"><div class="text-sm"><span class="statsFooterText">${totalEstimatedCount} of ${totalGroups} groups</span></div></div>
+          <div class="statsFooter"><div class="text-sm"><span class="statsFooterText" data-est-total-footer>${totalEstimatedCount} of ${totalGroups} with custom estimates</span></div></div>
         </dd>
       </div>
 
@@ -713,10 +753,53 @@ export function issuesToRemediationPlanHtml(
       let activeSeverity = 'All';
       let activeOwner = 'All';
 
+      function toHoursRange(low, high) {
+        const l = Math.round(low * 10) / 10;
+        const h = Math.round(high * 10) / 10;
+        return l === h ? l + 'h' : l + '\u2013' + h + 'h';
+      }
+
+      function updateEstimateStats() {
+        let totalLow = 0, totalHigh = 0, customCount = 0, totalCount = 0;
+        for (const el of items) {
+          if (el.hidden) continue;
+          totalLow += parseFloat(el.getAttribute('data-est-low') || '0');
+          totalHigh += parseFloat(el.getAttribute('data-est-high') || '0');
+          if (el.getAttribute('data-est-custom') === '1') customCount++;
+          totalCount++;
+        }
+        const valEl = document.querySelector('[data-est-total-value]');
+        const footerEl = document.querySelector('[data-est-total-footer]');
+        if (valEl) valEl.textContent = toHoursRange(totalLow, totalHigh);
+        if (footerEl) footerEl.textContent = customCount + ' of ' + totalCount + ' with custom estimates';
+      }
+
       function applyFilters() {
         for (const b of buttons) b.dataset.active = String(b.dataset.tab === activeSeverity);
         if (select) select.value = activeSeverity;
-        for (const ob of ownerButtons) ob.dataset.active = String(ob.dataset.ownerTab === activeOwner);
+
+        // Recount owner totals scoped to the active severity
+        const ownerCounts = { All: 0, Code: 0, Content: 0, Design: 0 };
+        for (const el of items) {
+          const sev = el.getAttribute('data-severity-item');
+          const owner = el.getAttribute('data-owner-item');
+          if (activeSeverity === 'All' || sev === activeSeverity) {
+            ownerCounts.All++;
+            if (owner && ownerCounts.hasOwnProperty(owner)) ownerCounts[owner]++;
+          }
+        }
+        for (const ob of ownerButtons) {
+          const key = ob.dataset.ownerTab || 'All';
+          const countEl = ob.querySelector('.ownerCount');
+          if (countEl) countEl.textContent = String(ownerCounts[key] || 0);
+          ob.disabled = key !== 'All' && (ownerCounts[key] || 0) === 0;
+          ob.dataset.active = String(ob.dataset.ownerTab === activeOwner);
+        }
+        // Reset owner filter if current selection has zero items
+        if (activeOwner !== 'All' && (ownerCounts[activeOwner] || 0) === 0) {
+          activeOwner = 'All';
+          for (const ob of ownerButtons) ob.dataset.active = String(ob.dataset.ownerTab === activeOwner);
+        }
 
         for (const el of items) {
           const sev = el.getAttribute('data-severity-item');
@@ -732,6 +815,7 @@ export function issuesToRemediationPlanHtml(
           );
           sec.hidden = !visible;
         }
+        updateEstimateStats();
       }
 
       for (const b of buttons) {
