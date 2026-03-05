@@ -582,6 +582,158 @@ function extractBestWcagLabelFromAncestors(el: Element): string | undefined {
   return candidates[0];
 }
 
+/**
+ * Detect and parse WCAG criteria summary tables.
+ *
+ * These are tables with headers like: Criteria | Name | Level | Violations | Potentials | Passed
+ * typically found inside `<section class="scan-section">` blocks, each representing a scanned page.
+ *
+ * This format doesn't include individual issue descriptions — only per-criterion counts —
+ * so we create synthetic issues with the WCAG criterion number and name.
+ */
+function parseCriteriaSummaryTableSections(
+  doc: Document,
+  sourceFile: string,
+): ParsedIssue[] {
+  const issues: ParsedIssue[] = [];
+
+  // Detect criteria-summary tables by header shape.
+  function isCriteriaSummaryTable(table: HTMLTableElement): boolean {
+    const headerRow =
+      table.tHead?.rows?.[0] ??
+      table.querySelector("tr:has(th)") ??
+      table.querySelector("tr");
+    if (!headerRow) return false;
+    const headers = Array.from(headerRow.querySelectorAll("th,td"))
+      .map((c) => normalizeText(c.textContent).toLowerCase());
+    const hasCriteria = headers.some((h) => /criteria|criterion/.test(h));
+    const hasViolations = headers.some((h) => /violations?/.test(h));
+    const hasPotentials = headers.some((h) => /potentials?/.test(h));
+    return hasCriteria && (hasViolations || hasPotentials);
+  }
+
+  // Parse a single criteria table, attributing issues to the given page URL.
+  function parseSingleCriteriaTable(
+    table: HTMLTableElement,
+    pageUrl: string | undefined,
+  ): void {
+    const headerRow =
+      table.tHead?.rows?.[0] ??
+      table.querySelector("tr:has(th)") ??
+      table.querySelector("tr");
+    if (!headerRow) return;
+
+    const headers = Array.from(headerRow.querySelectorAll("th,td"))
+      .map((c) => normalizeText(c.textContent).toLowerCase());
+
+    const criteriaIdx = headers.findIndex((h) => /criteria|criterion/.test(h));
+    const nameIdx = headers.findIndex((h) => h === "name");
+    const violationsIdx = headers.findIndex((h) => /violations?/.test(h));
+    const potentialsIdx = headers.findIndex((h) => /potentials?/.test(h));
+
+    const bodyRows = table.tBodies && table.tBodies.length > 0
+      ? Array.from(table.tBodies).flatMap((b) => Array.from(b.rows))
+      : Array.from(table.querySelectorAll("tr"));
+
+    const dataRows = bodyRows.filter(
+      (r) => r !== headerRow && r.querySelectorAll("td,th").length > 0,
+    );
+
+    for (const row of dataRows) {
+      const cells = Array.from(row.querySelectorAll("td,th"));
+      const get = (idx: number): string =>
+        idx >= 0 && idx < cells.length
+          ? normalizeText(cells[idx]!.textContent)
+          : "";
+
+      // Extract the WCAG criterion number. In this format, the first cell
+      // often contains a link whose text is the criterion number (e.g. "1.1.1").
+      let criteriaNum = "";
+      if (criteriaIdx >= 0 && criteriaIdx < cells.length) {
+        const link = cells[criteriaIdx]!.querySelector("a");
+        criteriaNum = normalizeText(
+          link ? link.textContent : cells[criteriaIdx]!.textContent,
+        );
+      }
+
+      const criteriaName = get(nameIdx);
+      const violationsStr = get(violationsIdx);
+      const potentialsStr = get(potentialsIdx);
+
+      const violations = parseFirstPositiveInt(violationsStr);
+      const potentials = parseFirstPositiveInt(potentialsStr);
+
+      const wcagLabel = criteriaNum && criteriaName
+        ? `${criteriaNum} ${criteriaName}`
+        : criteriaNum || criteriaName || undefined;
+
+      if (violations && violations > 0) {
+        issues.push({
+          title: `WCAG ${wcagLabel ?? "Unknown"} — Violations`,
+          description: `${violations} violation(s) found for WCAG ${wcagLabel ?? "Unknown"}. Detailed element-level information was not included in this report export.`,
+          severity: "Critical",
+          occurrences: violations,
+          wcag: wcagLabel,
+          page: pageUrl,
+          sourceFile,
+        });
+      }
+
+      if (potentials && potentials > 0) {
+        issues.push({
+          title: `WCAG ${wcagLabel ?? "Unknown"} — Potential violations`,
+          description: `${potentials} potential violation(s) found for WCAG ${wcagLabel ?? "Unknown"}. Detailed element-level information was not included in this report export.`,
+          severity: "Moderate",
+          occurrences: potentials,
+          wcag: wcagLabel,
+          page: pageUrl,
+          sourceFile,
+        });
+      }
+    }
+  }
+
+  // Strategy 1: Look for <section class="scan-section"> containers with
+  // a heading that contains the page URL and a child criteria table.
+  const scanSections = Array.from(doc.querySelectorAll('section.scan-section, section[class*="scan-section"]'));
+  if (scanSections.length > 0) {
+    for (const section of scanSections) {
+      // The page URL lives in the <h2 class="scan-title"> inside the section.
+      const heading = section.querySelector('h2, h3, [class*="scan-title"]');
+      const pageUrl = heading ? normalizeText(heading.textContent) : undefined;
+
+      const tables = Array.from(
+        section.querySelectorAll("table"),
+      ) as HTMLTableElement[];
+      for (const table of tables) {
+        if (isCriteriaSummaryTable(table)) {
+          parseSingleCriteriaTable(table, pageUrl);
+        }
+      }
+    }
+    return issues;
+  }
+
+  // Strategy 2: No scan-section wrappers found — look for any criteria table
+  // in the document and fall back to a globally-detected page URL.
+  const allTables = Array.from(
+    doc.querySelectorAll("table"),
+  ) as HTMLTableElement[];
+  const fallbackUrl = extractPrimaryPageUrl(doc);
+  for (const table of allTables) {
+    if (isCriteriaSummaryTable(table)) {
+      // Try to find a page URL from aria-label on the table itself
+      // (Stark sets aria-label="WCAG criteria results for <url>")
+      const ariaLabel = table.getAttribute("aria-label") ?? "";
+      const urlMatch = ariaLabel.match(/https?:\/\/[^\s"']+/i);
+      const pageUrl = urlMatch ? urlMatch[0] : fallbackUrl;
+      parseSingleCriteriaTable(table, pageUrl);
+    }
+  }
+
+  return issues;
+}
+
 function parseCategoriesCardIssues(
   doc: Document,
   sourceFile: string,
@@ -962,8 +1114,17 @@ export function parseStarkHtmlReport(
         }
       }
     } else {
-      debug.warnings.push("No issue tables matched; using fallback heuristic.");
-      issues = parseHeuristicIssues(doc, sourceFile);
+      // Try criteria summary tables (e.g. per-page WCAG tables with Violations/Potentials/Passed columns).
+      const criteriaSummaryIssues = parseCriteriaSummaryTableSections(doc, sourceFile);
+      if (criteriaSummaryIssues.length > 0) {
+        debug.warnings.push(
+          `No issue tables or category cards matched; parsed ${criteriaSummaryIssues.length} issue(s) from WCAG criteria summary tables.`,
+        );
+        issues = criteriaSummaryIssues;
+      } else {
+        debug.warnings.push("No issue tables matched; using fallback heuristic.");
+        issues = parseHeuristicIssues(doc, sourceFile);
+      }
     }
   }
 
