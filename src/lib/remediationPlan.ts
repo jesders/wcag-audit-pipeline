@@ -170,10 +170,11 @@ export function computeIssueKey(
   issue: Pick<ConsolidatedIssue, "ruleId" | "wcag" | "title" | "description">,
 ): string {
   const title = normalizeText(issue.title) || "Issue";
-  const description = normalizeText(issue.description);
   const wcag = normalizeText(issue.wcag) || "";
   const ruleId = normalizeText(issue.ruleId) || "";
-  return `${ruleId}|${wcag}|${title}|${description}`.toLowerCase();
+  // Key intentionally omits description so that identical WCAG+title issues
+  // share the same key even when descriptions differ across pages/files.
+  return `${ruleId}|${wcag}|${title}`.toLowerCase();
 }
 
 export function estimateForConsolidatedIssue(

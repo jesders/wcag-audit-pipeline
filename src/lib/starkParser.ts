@@ -1157,8 +1157,10 @@ export function consolidateIssues(
     const description = normalizeText(issue.description);
     const ruleId = normalizeText(issue.ruleId);
     const wcag = normalizeText(issue.wcag);
+    // Use a coarser key (no description) so identical WCAG+title issues merge
+    // even when descriptions differ slightly across pages / source files.
     const key =
-      `${ruleId || ""}|${wcag || ""}|${title}|${description}`.toLowerCase();
+      `${ruleId || ""}|${wcag || ""}|${title}`.toLowerCase();
 
     const existing = map.get(key);
     if (existing)
@@ -1198,9 +1200,14 @@ export function consolidateIssues(
         issues.map((i) => clampSnippet(i.exampleSnippet ?? "")).filter(Boolean),
       ),
     ).slice(0, 8);
+    // Pick the longest / most informative description from the group.
+    const bestDescription = issues
+      .map((i) => normalizeText(i.description))
+      .filter(Boolean)
+      .sort((a, b) => b.length - a.length)[0] ?? "";
     consolidated.push({
       title: issues[0]?.title ?? "Issue",
-      description: issues[0]?.description ?? "",
+      description: bestDescription,
       severity: pickHighestSeverity(issues.map((i) => i.severity)),
       wcag: issues[0]?.wcag,
       ruleId: issues[0]?.ruleId,
