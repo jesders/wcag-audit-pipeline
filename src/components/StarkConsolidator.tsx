@@ -24,9 +24,7 @@ import {
 } from "../lib/starkParser";
 
 import {
-  computeEstimateTotals,
   computeIssueKey,
-  estimateForConsolidatedIssue,
   issuesToRemediationPlanHtml,
   type EstimateOverrides,
 } from "../lib/remediationPlan";
@@ -221,12 +219,6 @@ export function StarkConsolidator() {
     return result;
   }, [severityFilteredIssues, responsiblePartyFilter, overrides]);
 
-  const formatHoursRange = (low: number, high: number) => {
-    const l = Math.round(low * 10) / 10;
-    const h = Math.round(high * 10) / 10;
-    return l === h ? `${l}h` : `${l}–${h}h`;
-  };
-
   const planHtml = useMemo(() => {
     if (visibleIssues.length === 0) return null;
     return issuesToRemediationPlanHtml(visibleIssues, {
@@ -237,38 +229,14 @@ export function StarkConsolidator() {
     });
   }, [visibleIssues, overrides, severityScheme]);
 
-  const allEstimateTotals = useMemo(() => {
-    if (visibleIssues.length === 0) return null;
-    return computeEstimateTotals(visibleIssues, overrides);
-  }, [visibleIssues, overrides]);
-
   const digestHtml = useMemo(() => {
     if (visibleIssues.length === 0) return null;
     return consolidatedIssuesToHtmlDigest(visibleIssues, {
       reportTitle: "Issues Digest",
       severityScheme,
       ownerResolver: effectiveResponsibleParty,
-      estimatedTimeLabel: allEstimateTotals
-        ? formatHoursRange(allEstimateTotals.lowHours, allEstimateTotals.highHours)
-        : undefined,
-      estimateResolver: (issue) => {
-        const key = `${categorizeIssue(issue)}|${computeIssueKey(issue)}`;
-        const raw = overrides[key]?.estimate;
-        if (raw) {
-          const match = raw.replace(/[\u2013\u2014]/g, '-').trim().match(
-            /^\s*(\d+(?:\.\d+)?)\s*(?:-\s*(\d+(?:\.\d+)?))?\s*(?:h(?:ours?)?)?\s*$/i,
-          );
-          if (match) {
-            const a = parseFloat(match[1]);
-            const b = match[2] ? parseFloat(match[2]) : a;
-            return { low: Math.min(a, b), high: Math.max(a, b) };
-          }
-        }
-        const auto = estimateForConsolidatedIssue(issue);
-        return { low: auto.lowHours, high: auto.highHours };
-      },
     });
-  }, [visibleIssues, severityScheme, allEstimateTotals, overrides]);
+  }, [visibleIssues, severityScheme, overrides]);
 
   const canOpenDigest = Boolean(digestHtml) && !busy;
   const canOpenPlan = Boolean(planHtml) && !busy;

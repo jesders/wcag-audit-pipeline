@@ -1226,10 +1226,6 @@ export type HtmlDigestOptions = {
   filterCategory?: IssueCategory;
   severityScheme?: SeverityScheme;
   ownerResolver?: (issue: ConsolidatedIssue) => ResponsibleParty;
-  /** Pre-formatted estimated time label (e.g. "12.5\u201328.3h") to display in the stats section. */
-  estimatedTimeLabel?: string;
-  /** Returns { low, high } hours for an issue. Used to embed per-issue estimate data for dynamic filtering. */
-  estimateResolver?: (issue: ConsolidatedIssue) => { low: number; high: number };
 };
 
 export function consolidatedIssuesToHtmlDigest(
@@ -1245,7 +1241,6 @@ export function consolidatedIssuesToHtmlDigest(
     : issues;
 
   const resolveOwner = options.ownerResolver ?? classifyResponsibleParty;
-  const resolveEst = options.estimateResolver ?? null;
 
   const ownerCounts: Record<ResponsibleParty, number> = { Code: 0, Content: 0, Design: 0 };
   for (const issue of filteredIssues) ownerCounts[resolveOwner(issue)] += 1;
@@ -1311,7 +1306,7 @@ export function consolidatedIssuesToHtmlDigest(
       : "";
 
     return `
-			<article class="issue" data-owner-item="${owner}"${resolveEst ? ` data-est-low="${resolveEst(i).low}" data-est-high="${resolveEst(i).high}"` : ''}>
+			<article class="issue" data-owner-item="${owner}">
 				<header class="issueHeader">
 					<div class="badges">
 						<span class="${severityClass[i.severity]}">${escapeHtml(sevLabel(i.severity))}</span>
@@ -1515,20 +1510,7 @@ export function consolidatedIssuesToHtmlDigest(
         </dd>
       </div>
 
-      ${options.estimatedTimeLabel ? `<div class="statsCard" data-stats-estimate>
-        <dt>
-          <div class="statsIconWrap">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="statsIcon">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6l4 2m6-2a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z" />
-            </svg>
-          </div>
-          <p class="statsLabel">Estimated time</p>
-        </dt>
-        <dd class="statsValueRow">
-          <p class="statsValue" data-est-total-value>${escapeHtml(options.estimatedTimeLabel)}</p>
-          <div class="statsFooter"><div class="text-sm"><span class="statsFooterText" data-est-total-footer>${totalUnique} issues</span></div></div>
-        </dd>
-      </div>` : ''}
+
     </dl>
 
     ${tabsHtml}
@@ -1596,31 +1578,6 @@ export function consolidatedIssuesToHtmlDigest(
       let activeSeverity = 'All';
       let activeOwner = 'All';
 
-      function toHoursRange(low, high) {
-        const l = Math.round(low * 10) / 10;
-        const h = Math.round(high * 10) / 10;
-        return l === h ? l + 'h' : l + '\u2013' + h + 'h';
-      }
-
-      function updateEstimateStats() {
-        const valEl = document.querySelector('[data-est-total-value]');
-        const footerEl = document.querySelector('[data-est-total-footer]');
-        if (!valEl) return;
-        let totalLow = 0, totalHigh = 0, visibleCount = 0;
-        for (const p of panels) {
-          if (p.hidden) continue;
-          const items = Array.from(p.querySelectorAll('[data-owner-item]'));
-          for (const el of items) {
-            if (el.hidden) continue;
-            totalLow += parseFloat(el.getAttribute('data-est-low') || '0');
-            totalHigh += parseFloat(el.getAttribute('data-est-high') || '0');
-            visibleCount++;
-          }
-        }
-        valEl.textContent = toHoursRange(totalLow, totalHigh);
-        if (footerEl) footerEl.textContent = visibleCount + ' issues';
-      }
-
       function applyFilters() {
         for (const b of buttons) b.dataset.active = String(b.dataset.tab === activeSeverity);
         if (select) select.value = activeSeverity;
@@ -1668,7 +1625,6 @@ export function consolidatedIssuesToHtmlDigest(
           const hasVisibleItems = items.some(el => !el.hidden);
           p.hidden = !sevVisible || !hasVisibleItems;
         }
-        updateEstimateStats();
       }
 
       for (const b of buttons) {
