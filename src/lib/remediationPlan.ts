@@ -208,11 +208,8 @@ export function computeEstimateTotals(
       lowHours += userRange.low;
       highHours += userRange.high;
       overriddenCount += 1;
-    } else {
-      const auto = estimateForConsolidatedIssue(issue);
-      lowHours += auto.lowHours;
-      highHours += auto.highHours;
     }
+    // No auto-estimate fallback — unestimated issues contribute 0 hours.
   }
 
   return { lowHours, highHours, overriddenCount, totalCount: issues.length };
@@ -457,15 +454,11 @@ export function issuesToRemediationPlanHtml(
       const occurrences = list.reduce((acc, i) => acc + i.occurrences, 0);
       const estimatedLowHours = list.reduce((acc, i) => {
         const r = overrideToEstimateRange(overrides[i.key]);
-        if (r) return acc + r.low;
-        const auto = estimateForConsolidatedIssue(i);
-        return acc + auto.lowHours;
+        return r ? acc + r.low : acc;
       }, 0);
       const estimatedHighHours = list.reduce((acc, i) => {
         const r = overrideToEstimateRange(overrides[i.key]);
-        if (r) return acc + r.high;
-        const auto = estimateForConsolidatedIssue(i);
-        return acc + auto.highHours;
+        return r ? acc + r.high : acc;
       }, 0);
       const estimatedCount = list.reduce((acc, i) => {
         const r = overrideToEstimateRange(overrides[i.key]);
@@ -523,12 +516,11 @@ export function issuesToRemediationPlanHtml(
           .join("")}</ul></details>`
       : "";
     const r = overrideToEstimateRange(override);
-    const auto = estimateForConsolidatedIssue(i);
-    const estLow = r ? r.low : auto.lowHours;
-    const estHigh = r ? r.high : auto.highHours;
+    const estLow = r ? r.low : 0;
+    const estHigh = r ? r.high : 0;
     const yourEst = r
       ? `<span class="pill">Estimate: ${toHoursRange(estLow, estHigh)}</span>`
-      : `<span class="pill pill-muted">Est: ${toHoursRange(estLow, estHigh)} (auto)</span>`;
+      : `<span class="pill pill-muted">No estimate</span>`;
     const notes = override?.notes
       ? `<details><summary>Notes</summary><div class="desc noteText">${escapeHtml(override.notes)}</div></details>`
       : "";
