@@ -3,6 +3,7 @@ import {
   ArrowDownTrayIcon,
   ArrowUturnLeftIcon,
   ArrowUpTrayIcon,
+  ArrowsRightLeftIcon,
   BugAntIcon,
   DocumentTextIcon,
   EyeIcon,
@@ -98,6 +99,19 @@ export function StarkConsolidator() {
   });
   const [severityScheme, setSeverityScheme] =
     useState<SeverityScheme>("unknown");
+  const [redirectUrlsText, setRedirectUrlsText] = useState<string>(() => {
+    try {
+      return localStorage.getItem("wcag-audit-redirect-urls-v1") ?? "";
+    } catch {
+      return "";
+    }
+  });
+  const [checkingRedirects, setCheckingRedirects] = useState(false);
+  const [redirectCheckResult, setRedirectCheckResult] = useState<{
+    found: number;
+    checked: number;
+    failed: number;
+  } | null>(null);
   const [showDebug, setShowDebug] = useState(false);
   const [severityTab, setSeverityTab] = useState<
     "All" | "Critical" | "Serious" | "Moderate" | "Minor" | "Unknown"
@@ -153,16 +167,44 @@ export function StarkConsolidator() {
     }
   }, [hiddenIssueKeys]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem("wcag-audit-redirect-urls-v1", redirectUrlsText);
+    } catch {
+      // ignore
+    }
+  }, [redirectUrlsText]);
+
+  const redirectUrlSet = useMemo(() => {
+    const set = new Set<string>();
+    for (const line of redirectUrlsText.split("\n")) {
+      const trimmed = line.trim().toLowerCase().replace(/\/+$/, "");
+      if (trimmed) set.add(trimmed);
+    }
+    return set;
+  }, [redirectUrlsText]);
+
   const visibleIssues = useMemo(() => {
     if (issues.length === 0) return issues;
+    const hasRedirects = redirectUrlSet.size > 0;
     const visible: ConsolidatedIssue[] = [];
     for (const issue of issues) {
       const key = `${categorizeIssue(issue)}|${computeIssueKey(issue)}`;
       if (hiddenIssueKeys[key]) continue;
+      if (hasRedirects && issue.pages.length > 0) {
+        const filtered = issue.pages.filter(
+          (p) => !redirectUrlSet.has(p.trim().toLowerCase().replace(/\/+$/, "")),
+        );
+        if (filtered.length === 0) continue;
+        if (filtered.length !== issue.pages.length) {
+          visible.push({ ...issue, pages: filtered });
+          continue;
+        }
+      }
       visible.push(issue);
     }
     return visible;
-  }, [issues, hiddenIssueKeys]);
+  }, [issues, hiddenIssueKeys, redirectUrlSet]);
 
   const totalIssues = useMemo(
     () => visibleIssues.reduce((acc, i) => acc + i.occurrences, 0),
@@ -408,6 +450,78 @@ export function StarkConsolidator() {
     });
   }
 
+  const allPageUrls = useMemo(() => {
+    const set = new Set<string>();
+    for (const issue of issues) {
+      for (const p of issue.pages) if (p) set.add(p);
+    }
+    return Array.from(set);
+  }, [issues]);
+
+  async function detectRedirects() {
+    if (allPageUrls.length === 0) return;
+    setCheckingRedirects(true);
+    setRedirectCheckResult(null);
+
+    const redirected: string[] = [];
+    let failed = 0;
+
+    // Check in batches of 50 via the server-side API (avoids CORS issues)
+    for (let i = 0; i < allPageUrls.length; i += 50) {
+      const batch = allPageUrls.slice(i, i + 50);
+      try {
+        const res = await fetch("/api/check-redirects", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ urls: batch }),
+        });
+        if (!res.ok) {
+          failed += batch.length;
+          continue;
+        }
+        const data = (await res.json()) as {
+          results: Array<{ url: string; redirects: boolean; error?: boolean }>;
+        };
+        for (const r of data.results) {
+          if (r.redirects) redirected.push(r.url);
+          if (r.error) failed += 1;
+        }
+      } catch {
+        failed += batch.length;
+      }
+    }
+
+    if (redirected.length > 0) {
+      setRedirectUrlsText((prev) => {
+        const existing = new Set(
+          prev.split("\n").map((l) => l.trim().toLowerCase().replace(/\/+$/, "")),
+        );
+        const newUrls = redirected.filter(
+          (u) => !existing.has(u.trim().toLowerCase().replace(/\/+$/, "")),
+        );
+        if (newUrls.length === 0) return prev;
+        return (prev ? prev.trimEnd() + "\n" : "") + newUrls.join("\n");
+      });
+    }
+
+    setRedirectCheckResult({
+      found: redirected.length,
+      checked: allPageUrls.length,
+      failed,
+    });
+    setCheckingRedirects(false);
+  }
+
+  // Auto-detect redirects whenever new pages are loaded
+  const prevPageUrlsRef = useRef<string>("");
+  useEffect(() => {
+    if (allPageUrls.length === 0) return;
+    const key = allPageUrls.slice().sort().join("\n");
+    if (key === prevPageUrlsRef.current) return;
+    prevPageUrlsRef.current = key;
+    void detectRedirects();
+  }, [allPageUrls]);
+
   function analyzeSnippet() {
     const trimmed = snippetHtml.trim();
     if (!trimmed) {
@@ -646,14 +760,100 @@ export function StarkConsolidator() {
       </div>
 
       {busy && (
-        <p className="mt-3 text-sm text-slate-600 dark:text-slate-300">
-          Parsing…
-        </p>
+        <div className="mt-6 space-y-6 animate-pulse">
+          {/* Stats skeleton */}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-900">
+                <div className="h-3 w-24 rounded bg-slate-200 dark:bg-slate-700" />
+                <div className="mt-3 h-8 w-16 rounded bg-slate-200 dark:bg-slate-700" />
+                <div className="mt-2 h-3 w-32 rounded bg-slate-100 dark:bg-slate-800" />
+              </div>
+            ))}
+          </div>
+          {/* Issue card skeletons */}
+          <div className="space-y-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-900">
+                <div className="flex items-center gap-2">
+                  <div className="h-5 w-16 rounded-full bg-slate-200 dark:bg-slate-700" />
+                  <div className="h-5 w-20 rounded-full bg-slate-100 dark:bg-slate-800" />
+                  <div className="h-5 w-14 rounded-full bg-slate-100 dark:bg-slate-800" />
+                </div>
+                <div className="mt-4 h-4 w-3/4 rounded bg-slate-200 dark:bg-slate-700" />
+                <div className="mt-2 h-3 w-1/2 rounded bg-slate-100 dark:bg-slate-800" />
+              </div>
+            ))}
+          </div>
+        </div>
       )}
       {error && (
         <p className="mt-3 text-sm font-medium text-red-700 dark:text-red-400">
           {error}
         </p>
+      )}
+
+      {!busy && !error && parsedFiles.length > 0 && visibleIssues.length === 0 && (
+        <div className="mt-6 rounded-2xl border border-slate-200 bg-white/80 p-6 text-center shadow-sm dark:border-white/10 dark:bg-slate-900/40">
+          <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+            No issues found{issues.length > 0 ? " — all issues were on redirect pages" : ""}.
+          </p>
+        </div>
+      )}
+
+      {issues.length > 0 && (
+        <details className="mt-4 rounded-2xl border border-slate-200 bg-white/80 shadow-sm dark:border-white/10 dark:bg-slate-900/40">
+          <summary className="flex cursor-pointer select-none items-center gap-2 px-4 py-3 text-sm font-medium text-slate-900 dark:text-slate-50">
+            <ArrowsRightLeftIcon className="h-5 w-5 text-slate-500 dark:text-slate-300" />
+            Redirect pages
+            {redirectUrlSet.size > 0 && (
+              <span className="inline-flex items-center rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800 dark:bg-amber-600/20 dark:text-amber-300">
+                {redirectUrlSet.size} URL{redirectUrlSet.size === 1 ? "" : "s"}
+              </span>
+            )}
+          </summary>
+          <div className="border-t border-slate-200 px-4 py-3 dark:border-white/10">
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              Detect redirects automatically or paste URLs manually (one per line). Issues found only on redirect pages will be hidden.
+            </p>
+
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                disabled={checkingRedirects || allPageUrls.length === 0}
+                onClick={() => void detectRedirects()}
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-100 dark:hover:bg-slate-900/50"
+              >
+                <ArrowsRightLeftIcon className="h-4 w-4" />
+                {checkingRedirects ? "Checking…" : `Check ${allPageUrls.length} page${allPageUrls.length === 1 ? "" : "s"} for redirects`}
+              </button>
+              {redirectCheckResult && !checkingRedirects && (
+                <span className="text-sm text-slate-600 dark:text-slate-300">
+                  {redirectCheckResult.found === 0
+                    ? "No redirects found"
+                    : `Found ${redirectCheckResult.found} redirect${redirectCheckResult.found === 1 ? "" : "s"}`}
+                  {redirectCheckResult.failed > 0 && (
+                    <span className="text-amber-600 dark:text-amber-400">
+                      {" "}({redirectCheckResult.failed} URL{redirectCheckResult.failed === 1 ? "" : "s"} couldn't be checked — network error)
+                    </span>
+                  )}
+                </span>
+              )}
+            </div>
+
+            <textarea
+              rows={4}
+              value={redirectUrlsText}
+              onChange={(e) => setRedirectUrlsText(e.currentTarget.value)}
+              placeholder={"https://example.com/old-page\nhttps://example.com/another-redirect"}
+              className="mt-2 w-full resize-y rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 shadow-sm outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 dark:border-white/10 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500"
+              style={{
+                fontFamily:
+                  'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+              }}
+            />
+          </div>
+        </details>
       )}
 
         {visibleIssues.length > 0 && (
