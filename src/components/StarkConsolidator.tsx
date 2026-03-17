@@ -836,6 +836,20 @@ export function StarkConsolidator() {
         </div>
       </div>
 
+      {!busy && parsedFiles.length === 0 && issues.length === 0 && (
+        <div className="mt-8 flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white/60 px-6 py-12 text-center dark:border-white/15 dark:bg-slate-900/30">
+          <div className="mx-auto flex size-14 items-center justify-center rounded-full bg-slate-100 dark:bg-white/10">
+            <ArrowUpTrayIcon className="h-7 w-7 text-slate-400 dark:text-slate-500" />
+          </div>
+          <h3 className="mt-4 text-lg font-semibold text-slate-900 dark:text-slate-50">
+            No reports uploaded yet
+          </h3>
+          <p className="mt-2 max-w-md text-sm leading-relaxed text-slate-500 dark:text-slate-400">
+            Upload one or more Stark HTML accessibility reports using the <strong>Choose report files</strong> button above. Issues will be consolidated, categorized by severity, and you can generate remediation recommendations.
+          </p>
+        </div>
+      )}
+
       {busy && (
         <div className="mt-6 space-y-6 animate-pulse">
           {/* Stats skeleton */}
