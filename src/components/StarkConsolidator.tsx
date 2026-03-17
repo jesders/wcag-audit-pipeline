@@ -78,8 +78,22 @@ function formatSeverityBadge(
 export function StarkConsolidator() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [parsedFiles, setParsedFiles] = useState<ParsedFileResult[]>([]);
-  const [issues, setIssues] = useState<ConsolidatedIssue[]>([]);
+  const [parsedFiles, setParsedFiles] = useState<ParsedFileResult[]>(() => {
+    try {
+      const raw = localStorage.getItem("wcag-audit-parsed-files-v1");
+      return raw ? (JSON.parse(raw) as ParsedFileResult[]) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [issues, setIssues] = useState<ConsolidatedIssue[]>(() => {
+    try {
+      const raw = localStorage.getItem("wcag-audit-issues-v1");
+      return raw ? (JSON.parse(raw) as ConsolidatedIssue[]) : [];
+    } catch {
+      return [];
+    }
+  });
   const [hiddenIssueKeys, setHiddenIssueKeys] = useState<
     Record<string, true>
   >(() => {
@@ -98,7 +112,14 @@ export function StarkConsolidator() {
     }
   });
   const [severityScheme, setSeverityScheme] =
-    useState<SeverityScheme>("unknown");
+    useState<SeverityScheme>(() => {
+      try {
+        const raw = localStorage.getItem("wcag-audit-severity-scheme-v1");
+        return (raw as SeverityScheme) || "unknown";
+      } catch {
+        return "unknown";
+      }
+    });
   const [redirectUrlsText, setRedirectUrlsText] = useState<string>(() => {
     try {
       return localStorage.getItem("wcag-audit-redirect-urls-v1") ?? "";
@@ -166,6 +187,30 @@ export function StarkConsolidator() {
       // ignore
     }
   }, [hiddenIssueKeys]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("wcag-audit-issues-v1", JSON.stringify(issues));
+    } catch {
+      // ignore
+    }
+  }, [issues]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("wcag-audit-parsed-files-v1", JSON.stringify(parsedFiles));
+    } catch {
+      // ignore
+    }
+  }, [parsedFiles]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("wcag-audit-severity-scheme-v1", severityScheme);
+    } catch {
+      // ignore
+    }
+  }, [severityScheme]);
 
   useEffect(() => {
     try {
@@ -543,6 +588,28 @@ export function StarkConsolidator() {
     setOverrides({});
   }
 
+  function clearEverything() {
+    setIssues([]);
+    setParsedFiles([]);
+    setOverrides({});
+    setHiddenIssueKeys({});
+    setSeverityScheme("unknown");
+    setRedirectUrlsText("");
+    setError(null);
+    setRedirectCheckResult(null);
+    setCheckingRedirects(false);
+    setSnippetHtml("");
+    setSnippetResult(null);
+    setSnippetError(null);
+    prevPageUrlsRef.current = "";
+    localStorage.removeItem("stark_issues");
+    localStorage.removeItem("stark_parsedFiles");
+    localStorage.removeItem("stark_severityScheme");
+    localStorage.removeItem("stark_overrides");
+    localStorage.removeItem("stark_hiddenIssueKeys");
+    localStorage.removeItem("stark_redirectUrlsText");
+  }
+
   function downloadPlan() {
     if (!planHtml) return;
     downloadTextFile(
@@ -627,6 +694,16 @@ export function StarkConsolidator() {
                 >
                   <TrashIcon className="h-5 w-5 text-slate-500 dark:text-slate-300" />
                   Clear estimates
+                </button>
+
+                <button
+                  type="button"
+                  onClick={clearEverything}
+                  disabled={busy || (issues.length === 0 && parsedFiles.length === 0)}
+                  className="inline-flex items-center gap-2 rounded-xl border border-red-200 bg-white px-3 py-2 text-sm font-medium text-red-700 shadow-sm hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-red-500/30 dark:bg-slate-900/30 dark:text-red-400 dark:hover:bg-red-950/30"
+                >
+                  <XMarkIcon className="h-5 w-5" />
+                  Clear all
                 </button>
 
                 <button
