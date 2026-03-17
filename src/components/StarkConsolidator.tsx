@@ -407,6 +407,10 @@ export function StarkConsolidator() {
       setSeverityScheme(scheme);
 
       const consolidated = consolidateIssues(rawIssues);
+      // Pre-set checkingRedirects so the skeleton stays visible between
+      // busy→false and the useEffect that triggers detectRedirects().
+      const hasPages = consolidated.some((i) => i.pages.length > 0);
+      if (hasPages) setCheckingRedirects(true);
       setIssues(consolidated);
       setParsedFiles(debugByFile);
     } catch (e) {
