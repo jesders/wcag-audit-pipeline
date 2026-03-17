@@ -870,7 +870,7 @@ export function StarkConsolidator() {
         </p>
       )}
 
-      {!busy && !error && parsedFiles.length > 0 && visibleIssues.length === 0 && (
+      {!busy && !error && !checkingRedirects && parsedFiles.length > 0 && visibleIssues.length === 0 && (
         <div className="mt-6 rounded-2xl border border-slate-200 bg-white/80 p-6 text-center shadow-sm dark:border-white/10 dark:bg-slate-900/40">
           <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
             No issues found{issues.length > 0 ? " — all issues were on redirect pages" : ""}.
@@ -933,7 +933,7 @@ export function StarkConsolidator() {
         </details>
       )}
 
-        {visibleIssues.length > 0 && (
+        {!checkingRedirects && visibleIssues.length > 0 && (
           <div className="mt-6">
             <h3 className="statsTitle">Totals</h3>
             <dl className="statsGrid">
@@ -1058,7 +1058,7 @@ export function StarkConsolidator() {
           </div>
         )}
 
-        {visibleIssues.length > 0 && (
+        {!checkingRedirects && visibleIssues.length > 0 && (
           <div className="mt-6">
             <div className="grid gap-3">
               <div className="pb-4">
