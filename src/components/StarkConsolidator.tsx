@@ -128,11 +128,17 @@ export function StarkConsolidator() {
     }
   });
   const [checkingRedirects, setCheckingRedirects] = useState(false);
+  const [redirectProgress, setRedirectProgress] = useState<{
+    checked: number;
+    total: number;
+  } | null>(null);
   const [redirectCheckResult, setRedirectCheckResult] = useState<{
     found: number;
     checked: number;
     failed: number;
   } | null>(null);
+  const redirectAbortRef = useRef<AbortController | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [showDebug, setShowDebug] = useState(false);
   const [severityTab, setSeverityTab] = useState<
     "All" | "Critical" | "Serious" | "Moderate" | "Minor" | "Unknown"
@@ -407,16 +413,14 @@ export function StarkConsolidator() {
       setSeverityScheme(scheme);
 
       const consolidated = consolidateIssues(rawIssues);
-      // Pre-set checkingRedirects so the skeleton stays visible between
-      // busy→false and the useEffect that triggers detectRedirects().
-      const hasPages = consolidated.some((i) => i.pages.length > 0);
-      if (hasPages) setCheckingRedirects(true);
       setIssues(consolidated);
       setParsedFiles(debugByFile);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to parse files");
     } finally {
       setBusy(false);
+      // Reset the file input so the same files can be re-uploaded
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }
 
@@ -509,48 +513,71 @@ export function StarkConsolidator() {
 
   async function detectRedirects() {
     if (allPageUrls.length === 0) return;
+
+    // Abort any in-flight check
+    redirectAbortRef.current?.abort();
+    const abort = new AbortController();
+    redirectAbortRef.current = abort;
+
     setCheckingRedirects(true);
     setRedirectCheckResult(null);
+    setRedirectProgress({ checked: 0, total: allPageUrls.length });
 
     const redirected: string[] = [];
     let failed = 0;
+    let checked = 0;
+    const BATCH = 10;
+    const DELAY_MS = 300;
 
-    // Check in batches of 50 via the server-side API (avoids CORS issues)
-    for (let i = 0; i < allPageUrls.length; i += 50) {
-      const batch = allPageUrls.slice(i, i + 50);
+    for (let i = 0; i < allPageUrls.length; i += BATCH) {
+      if (abort.signal.aborted) return;
+
+      const batch = allPageUrls.slice(i, i + BATCH);
       try {
         const res = await fetch("/api/check-redirects", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ urls: batch }),
+          signal: abort.signal,
         });
         if (!res.ok) {
           failed += batch.length;
-          continue;
+        } else {
+          const data = (await res.json()) as {
+            results: Array<{ url: string; redirects: boolean; error?: boolean }>;
+          };
+          for (const r of data.results) {
+            if (r.redirects) redirected.push(r.url);
+            if (r.error) failed += 1;
+          }
         }
-        const data = (await res.json()) as {
-          results: Array<{ url: string; redirects: boolean; error?: boolean }>;
-        };
-        for (const r of data.results) {
-          if (r.redirects) redirected.push(r.url);
-          if (r.error) failed += 1;
-        }
-      } catch {
+      } catch (e) {
+        if (abort.signal.aborted) return;
         failed += batch.length;
       }
-    }
 
-    if (redirected.length > 0) {
-      setRedirectUrlsText((prev) => {
-        const existing = new Set(
-          prev.split("\n").map((l) => l.trim().toLowerCase().replace(/\/+$/, "")),
-        );
-        const newUrls = redirected.filter(
-          (u) => !existing.has(u.trim().toLowerCase().replace(/\/+$/, "")),
-        );
-        if (newUrls.length === 0) return prev;
-        return (prev ? prev.trimEnd() + "\n" : "") + newUrls.join("\n");
-      });
+      checked += batch.length;
+      setRedirectProgress({ checked, total: allPageUrls.length });
+
+      // Add redirect URLs incrementally so the UI updates as we go
+      if (redirected.length > 0) {
+        const found = [...redirected];
+        setRedirectUrlsText((prev) => {
+          const existing = new Set(
+            prev.split("\n").map((l) => l.trim().toLowerCase().replace(/\/+$/, "")),
+          );
+          const newUrls = found.filter(
+            (u) => !existing.has(u.trim().toLowerCase().replace(/\/+$/, "")),
+          );
+          if (newUrls.length === 0) return prev;
+          return (prev ? prev.trimEnd() + "\n" : "") + newUrls.join("\n");
+        });
+      }
+
+      // Throttle between batches to avoid overloading the server
+      if (i + BATCH < allPageUrls.length) {
+        await new Promise((r) => setTimeout(r, DELAY_MS));
+      }
     }
 
     setRedirectCheckResult({
@@ -558,18 +585,9 @@ export function StarkConsolidator() {
       checked: allPageUrls.length,
       failed,
     });
+    setRedirectProgress(null);
     setCheckingRedirects(false);
   }
-
-  // Auto-detect redirects whenever new pages are loaded
-  const prevPageUrlsRef = useRef<string>("");
-  useEffect(() => {
-    if (allPageUrls.length === 0) return;
-    const key = allPageUrls.slice().sort().join("\n");
-    if (key === prevPageUrlsRef.current) return;
-    prevPageUrlsRef.current = key;
-    void detectRedirects();
-  }, [allPageUrls]);
 
   function analyzeSnippet() {
     const trimmed = snippetHtml.trim();
@@ -602,16 +620,20 @@ export function StarkConsolidator() {
     setError(null);
     setRedirectCheckResult(null);
     setCheckingRedirects(false);
+    setRedirectProgress(null);
+    redirectAbortRef.current?.abort();
     setSnippetHtml("");
     setSnippetResult(null);
     setSnippetError(null);
-    prevPageUrlsRef.current = "";
+    redirectAbortRef.current?.abort();
     localStorage.removeItem("wcag-audit-issues-v1");
     localStorage.removeItem("wcag-audit-parsed-files-v1");
     localStorage.removeItem("wcag-audit-severity-scheme-v1");
     localStorage.removeItem("stark-remediation-overrides-v1");
     localStorage.removeItem("wcag-audit-hidden-issues-v1");
     localStorage.removeItem("wcag-audit-redirect-urls-v1");
+    // Reset the file input so re-uploading the same files triggers onChange
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   function downloadPlan() {
@@ -729,6 +751,7 @@ export function StarkConsolidator() {
             <ArrowUpTrayIcon className="h-5 w-5 text-slate-500 group-hover:text-slate-700 dark:text-slate-300 dark:group-hover:text-slate-100" />
             <span>Choose report files</span>
             <input
+              ref={fileInputRef}
               type="file"
               accept="text/html,.html"
               multiple
@@ -929,7 +952,11 @@ export function StarkConsolidator() {
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-800 shadow-sm hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-slate-900/30 dark:text-slate-100 dark:hover:bg-slate-900/50"
               >
                 <ArrowsRightLeftIcon className="h-4 w-4" />
-                {checkingRedirects ? "Checking…" : `Check ${allPageUrls.length} page${allPageUrls.length === 1 ? "" : "s"} for redirects`}
+                {checkingRedirects && redirectProgress
+                  ? `Checking… ${redirectProgress.checked}/${redirectProgress.total}`
+                  : checkingRedirects
+                    ? "Checking…"
+                    : `Check ${allPageUrls.length} page${allPageUrls.length === 1 ? "" : "s"} for redirects`}
               </button>
               {redirectCheckResult && !checkingRedirects && (
                 <span className="text-sm text-slate-600 dark:text-slate-300">
